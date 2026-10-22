@@ -32,6 +32,15 @@ class FirebaseSyncManager {
             this.auth = firebase.auth();
             this.db = firebase.firestore();
 
+            // Initialize Analytics if supported
+            if (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.measurementId && typeof firebase.analytics === 'function') {
+                try {
+                    this.analytics = firebase.analytics();
+                } catch (e) {
+                    console.debug('[Firebase Analytics]', e);
+                }
+            }
+
             // Setup Auth State Listener
             this.auth.onAuthStateChanged(user => {
                 this.currentUser = user;
