@@ -40,7 +40,13 @@ Connect your GitHub repository to Cloudflare Pages:
 
 ## 🌟 Key Features
 
-### 1. Authentic 5-Game Assessment Arena
+### 1. Firebase Authentication & Cloud Data Sync
+- **1-Click Google Sign-In & Email/Password Auth**: Candidates can sign in securely with their Google account or email.
+- **Cross-Device Cloud Sync**: Cleared levels (1–15 across all 5 games), personal best solve times, competition high scores, and diagnostic evaluation reports automatically sync to Google Cloud Firestore (`users/{uid}`).
+- **Smart Progress Merging**: Merges local storage and cloud records keeping the highest scores and fastest times.
+- **In-App Key Setup & Offline Fallback**: Works 100% offline via `localStorage` if not signed in, and allows instant in-app configuration of Firebase project keys via the UI modal.
+
+### 2. Authentic 5-Game Assessment Arena
 - **Game 1: Path Finder (Spatial Conduit Logic)**: 15 progressive levels (4×4 up to 8×8 grids) with blocked bedrock tiles and dynamic clockwise pipe rotations.
 - **Game 2: Quick / Bubble Math (Rapid Arithmetic Speed)**: Floating expressions with randomized Ascending (*Lowest → Highest*) and Descending (*Highest → Lowest*) sorting modes.
 - **Game 3: Memory Maze (Rat & Cheese Spatial Memory)**: 3–6 second route preview countdown followed by blind navigation with step validation.
@@ -91,7 +97,9 @@ Indian engineering candidates frequently search for this test phonetically as **
 ## 📁 Repository Structure
 
 ```
-├── index.html                   # Production-ready single-page application (>240 KB, 3,850+ lines)
+├── index.html                   # Production-ready single-page application (>240 KB, 3,900+ lines)
+├── firebase-config.js           # Firebase credentials & project keys configuration
+├── firebase-sync.js             # Firebase Auth & Cloud Firestore sync manager
 ├── robots.txt                   # Search crawler & AI bot permissions (GPTBot, PerplexityBot, etc.)
 ├── sitemap.xml                  # XML sitemap for Google & Bing webmaster indexing
 ├── llms.txt                     # Standardized summary file for LLM context retrieval
