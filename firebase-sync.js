@@ -2,32 +2,35 @@
  * Firebase Auth & Cloud Firestore Synchronization Manager
  * Accenture Gamified Assessment Simulator
  *
- * Document ID Strategy: Always use user.uid as the Firestore document ID.
- * This guarantees security rules (request.auth.uid == userDocId) always pass.
- * Username and email are stored as fields inside the document for display.
+ * SDK: Firebase v10 Compat (loaded via CDN, global `firebase` object)
+ * Document ID strategy: ALWAYS user.uid — guarantees security rule ownership check passes.
  */
 
 class FirebaseSyncManager {
     constructor() {
-        this.app = null;
-        this.auth = null;
-        this.db = null;
-        this.currentUser = null;
+        this.app          = null;
+        this.auth         = null;
+        this.db           = null;
+        this.currentUser  = null;
         this.lastSyncError = null;
-        this.isSyncing = false;
+        this.isSyncing    = false;
         this.lastSyncTime = null;
         this.debounceTimeout = null;
 
         this.init();
     }
 
+    /* -------------------------------------------------------------------------
+       INITIALIZATION
+       ------------------------------------------------------------------------- */
     init() {
         if (typeof firebase === 'undefined') {
-            console.warn('[Firebase] SDK not loaded.');
+            console.error('[Firebase] ❌ SDK scripts not loaded. Check your <script> tags.');
             return false;
         }
 
         try {
+            // Initialise the Firebase app (only once)
             if (!firebase.apps.length) {
                 this.app = firebase.initializeApp(window.FIREBASE_CONFIG);
             } else {
@@ -35,28 +38,33 @@ class FirebaseSyncManager {
             }
 
             this.auth = firebase.auth();
-            this.db = firebase.firestore();
+            this.db   = firebase.firestore();
 
-            // Initialize Analytics if supported
-            if (window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.measurementId && typeof firebase.analytics === 'function') {
-                try {
-                    this.analytics = firebase.analytics();
-                } catch (e) {
-                    console.debug('[Firebase Analytics]', e);
-                }
+            console.log('[Firebase] ✅ App, Auth, Firestore initialised. Project:', window.FIREBASE_CONFIG?.projectId);
+
+            // Analytics — optional, ignore failures
+            if (window.FIREBASE_CONFIG?.measurementId && typeof firebase.analytics === 'function') {
+                try { this.analytics = firebase.analytics(); } catch (_) {}
             }
 
-            // Auth state listener — fires on page load for persisted sessions
+            // ---------------------------------------------------------------
+            // Auth state listener
+            // Fires immediately on page load (persisted session) AND after
+            // every sign-in / sign-out.
+            // ---------------------------------------------------------------
             this.auth.onAuthStateChanged(user => {
+                console.log('[Firebase] onAuthStateChanged fired. User:', user ? user.uid : 'null');
                 this.currentUser = user;
                 this.updateUI();
 
                 if (user) {
-                    // Only sync from onAuthStateChanged if not already mid-sync
-                    // (signInWithGoogle / signInWithEmail also trigger sync directly)
+                    // If signInWithGoogle() already called _doSync() for THIS session,
+                    // isSyncing will be true — skip to avoid double write.
+                    // On a FRESH PAGE LOAD with a persisted session, isSyncing is false,
+                    // so this path handles the "returning user" case.
                     if (!this.isSyncing) {
                         this._doSync(user).catch(err => {
-                            console.warn('[AuthStateChanged Sync Error]', err);
+                            console.warn('[Firebase] onAuthStateChanged sync failed:', err?.code || err?.message);
                         });
                     }
                 }
@@ -64,173 +72,225 @@ class FirebaseSyncManager {
 
             return true;
         } catch (err) {
-            console.error('[Firebase Init Error]', err);
+            console.error('[Firebase] ❌ Init error:', err);
             return false;
         }
     }
 
-    /* --------------------------------------------------------------------------
-       AUTHENTICATION METHODS
-       -------------------------------------------------------------------------- */
+    /* -------------------------------------------------------------------------
+       AUTH — GOOGLE SIGN-IN (only sign-in method enabled)
+       ------------------------------------------------------------------------- */
     async signInWithGoogle() {
         if (!this.auth) {
-            throw new Error('Firebase is not initialized. Please configure your Firebase keys first.');
+            throw new Error('Firebase Auth is not initialised. Check your config.');
         }
+
+        console.log('[Firebase] Starting Google Sign-In popup…');
+
         const provider = new firebase.auth.GoogleAuthProvider();
         provider.setCustomParameters({ prompt: 'select_account' });
-        const cred = await this.auth.signInWithPopup(provider);
-        if (cred && cred.user) {
-            this.currentUser = cred.user;
-            this.updateUI();
-            // Explicitly sync immediately after Google sign-in
-            await this._doSync(cred.user);
-        }
-        return cred;
-    }
 
-    async signInWithEmail(email, password) {
-        if (!this.auth) {
-            throw new Error('Firebase is not initialized. Please configure your Firebase keys first.');
+        // signInWithPopup resolves AFTER the popup closes and Firebase confirms auth.
+        let cred;
+        try {
+            cred = await this.auth.signInWithPopup(provider);
+        } catch (authErr) {
+            console.error('[Firebase] ❌ Google Auth error:', authErr.code, authErr.message);
+            throw authErr; // rethrow so handleGoogleSignIn() can show UI error
         }
-        const cred = await this.auth.signInWithEmailAndPassword(email.trim(), password);
-        if (cred && cred.user) {
-            this.currentUser = cred.user;
-            this.updateUI();
-            await this._doSync(cred.user);
-        }
-        return cred;
-    }
 
-    async signUpWithEmail(email, password, displayName = '') {
-        if (!this.auth) {
-            throw new Error('Firebase is not initialized. Please configure your Firebase keys first.');
-        }
-        const cred = await this.auth.createUserWithEmailAndPassword(email.trim(), password);
-        if (displayName && cred.user) {
-            await cred.user.updateProfile({ displayName: displayName.trim() });
-        }
-        if (cred && cred.user) {
-            this.currentUser = cred.user;
-            this.updateUI();
-            await this._doSync(cred.user);
-        }
+        console.log('[Firebase] ✅ Google Auth success. UID:', cred.user.uid);
+
+        // Update local state immediately so the UI responds before Firestore finishes
+        this.currentUser = cred.user;
+        this.updateUI();
+
+        // Write to Firestore — await so the caller can catch Firestore errors separately
+        await this._doSync(cred.user);
+
         return cred;
     }
 
     async signOut() {
         if (!this.auth) return;
         await this.auth.signOut();
-        this.currentUser = null;
+        this.currentUser   = null;
         this.lastSyncError = null;
-        this.isSyncing = false;
+        this.isSyncing     = false;
         if (this.debounceTimeout) {
             clearTimeout(this.debounceTimeout);
             this.debounceTimeout = null;
         }
         this.updateUI();
+        console.log('[Firebase] User signed out.');
     }
 
-    /* --------------------------------------------------------------------------
-       CLOUD FIRESTORE SYNCHRONIZATION
-       --------------------------------------------------------------------------
-       IMPORTANT: Document ID is ALWAYS user.uid.
-       This is the only strategy that satisfies the Firestore security rule:
-         allow create/update: if request.auth.uid == userDocId
-       Username and email are stored as fields (not as the document ID).
-       -------------------------------------------------------------------------- */
-
-    /**
-     * Internal sync method — always writes to users/{uid}.
-     * Called by auth methods and onAuthStateChanged.
-     */
+    /* -------------------------------------------------------------------------
+       FIRESTORE SYNC — _doSync(user)
+       Always writes to users/{user.uid}.
+       ------------------------------------------------------------------------- */
     async _doSync(user) {
-        if (!this.db || !user) return;
-
-        // Prevent parallel sync runs
-        if (this.isSyncing) {
-            console.debug('[Firebase Sync] Already syncing, skipping duplicate call.');
+        if (!this.db || !user) {
+            console.warn('[Firebase Sync] _doSync called but db or user is missing.');
             return;
         }
+        if (this.isSyncing) {
+            console.debug('[Firebase Sync] Already syncing — skipping duplicate call for uid:', user.uid);
+            return;
+        }
+
         this.isSyncing = true;
         this.setSyncStatus('SYNCING');
+        console.log('[Firebase Sync] Starting sync for uid:', user.uid);
 
         try {
-            const docId = user.uid;                                         // Always UID
+            const docId   = user.uid;   // ← ALWAYS uid. Document ID == request.auth.uid → rules pass.
             const userRef = this.db.collection('users').doc(docId);
 
-            // --- Step 1: Read existing cloud document ---
+            // ------------------------------------------------------------------
+            // Step 1: Read existing document
+            // ------------------------------------------------------------------
             let cloudData = null;
             try {
+                console.log('[Firebase Sync] Reading users/' + docId + '…');
                 const snap = await userRef.get();
                 if (snap.exists) {
                     cloudData = snap.data();
-                    console.log('[Firebase Sync] Existing doc found for uid:', docId);
+                    console.log('[Firebase Sync] Existing document found:', Object.keys(cloudData));
                 } else {
-                    console.log('[Firebase Sync] New user — creating Firestore document for uid:', docId);
+                    console.log('[Firebase Sync] No existing document — this is a new user.');
                 }
             } catch (readErr) {
-                // Permission denied on read — still attempt write (create may be allowed)
-                console.warn('[Firebase Sync] Read failed (may be new user):', readErr.code || readErr.message);
+                // permission-denied on read is NOT fatal for a new user —
+                // the create rule may still allow the write.
+                console.warn('[Firebase Sync] Read failed (' + (readErr.code || readErr.message) + '). Proceeding to write.');
             }
 
-            // --- Step 2: Merge local + cloud progress ---
-            const localProgress = this._loadLocalProgress();
-            const cloudProgress = cloudData ? (cloudData.progress || null) : null;
+            // ------------------------------------------------------------------
+            // Step 2: Merge progress (local wins for anything cloud doesn't have)
+            // ------------------------------------------------------------------
+            const localProgress  = this._loadLocalProgress();
+            const cloudProgress  = cloudData?.progress || null;
             const mergedProgress = this._mergeProgress(localProgress, cloudProgress);
 
-            // --- Step 3: Persist merged progress to localStorage & app ---
+            // Persist merged progress back to localStorage + the live app instance
             const appInstance = window.app || (typeof app !== 'undefined' ? app : null);
-            const storageKey = (appInstance && appInstance.storageKey) ? appInstance.storageKey : 'accenture_exam_sim_v3';
+            const storageKey  = appInstance?.storageKey ?? 'accenture_exam_sim_v3';
             if (appInstance) appInstance.progress = mergedProgress;
             try { localStorage.setItem(storageKey, JSON.stringify(mergedProgress)); } catch (_) {}
 
-            // --- Step 4: Build and write the Firestore payload ---
+            // ------------------------------------------------------------------
+            // Step 3: Build Firestore payload
+            // ------------------------------------------------------------------
             const username = user.email
                 ? user.email.split('@')[0]
                 : (user.displayName || 'Candidate');
-            const nowIso = new Date().toISOString();
+            const nowIso   = new Date().toISOString();
 
             const payload = {
-                uid:         user.uid,
-                username:    username,
-                email:       user.email || '',
-                displayName: user.displayName || username,
-                photoURL:    user.photoURL || '',
-                createdAt:   (cloudData && cloudData.createdAt) ? cloudData.createdAt : nowIso,
-                lastLoginAt: nowIso,
+                uid:          user.uid,
+                username:     username,
+                email:        user.email        || '',
+                displayName:  user.displayName  || username,
+                photoURL:     user.photoURL     || '',
+                createdAt:    cloudData?.createdAt  ?? nowIso,
+                lastLoginAt:  nowIso,
                 lastSyncedAt: nowIso,
-                progress:    mergedProgress
+                progress:     mergedProgress
             };
 
+            // ------------------------------------------------------------------
+            // Step 4: Write to Firestore
+            // set(..., { merge: true }) → creates doc if new, merges if existing
+            // ------------------------------------------------------------------
+            console.log('[Firebase Sync] Writing users/' + docId + ' with fields:', Object.keys(payload));
             await userRef.set(payload, { merge: true });
-            console.log('[Firebase Sync] ✅ Document written successfully to users/' + docId);
+            console.log('[Firebase Sync] ✅ Firestore write SUCCESS for users/' + docId);
 
-            this.lastSyncTime = new Date();
+            this.lastSyncTime  = new Date();
             this.lastSyncError = null;
             this.setSyncStatus('SYNCED');
 
-            // Refresh dashboard UI after cloud data is merged in
+            // Refresh dashboard so cloud-merged scores appear immediately
             if (appInstance && typeof appInstance.renderDashboard === 'function') {
                 appInstance.renderDashboard();
             }
+
         } catch (err) {
-            console.error('[Firebase Sync Error]', err.code || err.message, err);
+            // Log the full error so it appears in the browser console
+            console.error(
+                '[Firebase Sync] ❌ WRITE FAILED',
+                '\n  Code   :', err.code    || 'N/A',
+                '\n  Message:', err.message || 'N/A',
+                '\n  Likely causes:',
+                '\n    • Firestore Security Rules not yet published → go to',
+                '\n      https://console.firebase.google.com/project/' + (window.FIREBASE_CONFIG?.projectId || 'YOUR_PROJECT') + '/firestore/rules',
+                '\n      and click Publish.',
+                '\n    • Firestore database not created yet → go to',
+                '\n      https://console.firebase.google.com/project/' + (window.FIREBASE_CONFIG?.projectId || 'YOUR_PROJECT') + '/firestore',
+                '\n      and click Create Database.',
+                '\n  Full error object:', err
+            );
             this.lastSyncError = err;
             this.setSyncStatus('ERROR', err);
-            throw err;
+            throw err; // rethrow so callers can handle UI feedback
         } finally {
             this.isSyncing = false;
         }
     }
 
-    /** Public alias so existing callers (triggerManualSync, window.onload) still work */
+    /** Public alias — keeps backward compatibility with any existing callers. */
     async syncCloudAndLocal(user) {
         return this._doSync(user || this.currentUser);
     }
 
-    /* --------------------------------------------------------------------------
+    /* -------------------------------------------------------------------------
+       DEBOUNCED CLOUD SAVE — called by saveProgress() after each level finish
+       ------------------------------------------------------------------------- */
+    queueCloudSave(progress) {
+        if (!this.currentUser || !this.db) {
+            console.debug('[Firebase Sync] queueCloudSave skipped — not signed in or db missing.');
+            return;
+        }
+
+        this.setSyncStatus('SYNCING');
+        if (this.debounceTimeout) clearTimeout(this.debounceTimeout);
+
+        this.debounceTimeout = setTimeout(async () => {
+            const docId   = this.currentUser.uid;   // Always uid
+            const userRef = this.db.collection('users').doc(docId);
+            const username = this.currentUser.email
+                ? this.currentUser.email.split('@')[0]
+                : (this.currentUser.displayName || 'Candidate');
+
+            const updatePayload = {
+                uid:          this.currentUser.uid,
+                username:     username,
+                email:        this.currentUser.email       || '',
+                displayName:  this.currentUser.displayName || username,
+                photoURL:     this.currentUser.photoURL    || '',
+                lastSyncedAt: new Date().toISOString(),
+                progress:     progress
+            };
+
+            try {
+                console.log('[Firebase Sync] queueCloudSave writing users/' + docId + '…');
+                await userRef.set(updatePayload, { merge: true });
+                this.lastSyncTime  = new Date();
+                this.lastSyncError = null;
+                this.setSyncStatus('SYNCED');
+                console.log('[Firebase Sync] ✅ queueCloudSave write SUCCESS');
+            } catch (e) {
+                console.error('[Firebase Sync] ❌ queueCloudSave FAILED:', e.code || e.message, e);
+                this.lastSyncError = e;
+                this.setSyncStatus('ERROR', e);
+            }
+        }, 1200);  // 1.2 s debounce to batch rapid level completions
+    }
+
+    /* -------------------------------------------------------------------------
        PROGRESS HELPERS
-       -------------------------------------------------------------------------- */
+       ------------------------------------------------------------------------- */
     _createInitialProgress() {
         const gameIds = ['pathfinder', 'bubblemath', 'memorymaze', 'keydoor', 'memoryrecall'];
         const initial = { totalAttempts: 0, games: {}, gameAttempts: {} };
@@ -252,21 +312,17 @@ class FirebaseSyncManager {
 
     _loadLocalProgress() {
         const appInstance = window.app || (typeof app !== 'undefined' ? app : null);
-        // Prefer live in-memory progress from the running app instance
-        if (appInstance && appInstance.progress && appInstance.progress.games &&
-            Object.keys(appInstance.progress.games).length > 0) {
+        if (appInstance?.progress?.games && Object.keys(appInstance.progress.games).length > 0) {
             return appInstance.progress;
         }
-        // Fall back to localStorage
-        const storageKey = (appInstance && appInstance.storageKey) ? appInstance.storageKey : 'accenture_exam_sim_v3';
+        const storageKey = appInstance?.storageKey ?? 'accenture_exam_sim_v3';
         try {
             const raw = localStorage.getItem(storageKey);
             if (raw) {
                 const parsed = JSON.parse(raw);
-                if (parsed && parsed.games && Object.keys(parsed.games).length > 0) return parsed;
+                if (parsed?.games && Object.keys(parsed.games).length > 0) return parsed;
             }
         } catch (_) {}
-        // Last resort: let the app generate a fresh structure
         if (appInstance && typeof appInstance.loadProgress === 'function') {
             return appInstance.loadProgress();
         }
@@ -274,156 +330,102 @@ class FirebaseSyncManager {
     }
 
     _mergeProgress(local, remote) {
-        const base = this._createInitialProgress();
-        const srcLocal  = (local  && local.games)  ? local  : base;
-        const srcRemote = (remote && remote.games)  ? remote : null;
+        const base      = this._createInitialProgress();
+        const srcLocal  = local?.games  ? local  : base;
+        const srcRemote = remote?.games ? remote : null;
 
         const merged = {
-            totalAttempts: Math.max(srcLocal.totalAttempts || 0, srcRemote ? (srcRemote.totalAttempts || 0) : 0),
+            totalAttempts: Math.max(srcLocal.totalAttempts || 0, srcRemote?.totalAttempts || 0),
             games:         {},
             gameAttempts:  {}
         };
 
-        const allGameIds = ['pathfinder', 'bubblemath', 'memorymaze', 'keydoor', 'memoryrecall'];
-        allGameIds.forEach(gid => {
-            merged.games[gid] = {};
-            merged.gameAttempts[gid] = Math.max(
-                srcLocal.gameAttempts?.[gid]  || 0,
-                srcRemote ? (srcRemote.gameAttempts?.[gid] || 0) : 0
-            );
-
+        ['pathfinder', 'bubblemath', 'memorymaze', 'keydoor', 'memoryrecall'].forEach(gid => {
+            merged.games[gid]       = {};
+            merged.gameAttempts[gid] = Math.max(srcLocal.gameAttempts?.[gid] || 0,
+                                                 srcRemote?.gameAttempts?.[gid] || 0);
             for (let r = 1; r <= 15; r++) {
                 const l   = srcLocal.games?.[gid]?.[r]  || {};
-                const rem = srcRemote ? (srcRemote.games?.[gid]?.[r] || {}) : {};
-
-                let bestTime = null;
-                const lbt  = (l.bestTime   != null) ? l.bestTime   : null;
-                const rbt  = (rem.bestTime != null) ? rem.bestTime : null;
-                if (lbt !== null && rbt !== null) bestTime = Math.min(lbt, rbt);
-                else if (lbt !== null)            bestTime = lbt;
-                else if (rbt !== null)            bestTime = rbt;
-
+                const rem = srcRemote?.games?.[gid]?.[r] || {};
+                const lbt = l.bestTime   != null ? l.bestTime   : null;
+                const rbt = rem.bestTime != null ? rem.bestTime : null;
                 merged.games[gid][r] = {
                     completed: Boolean(l.completed || rem.completed),
-                    bestTime:  bestTime,
+                    bestTime:  (lbt != null && rbt != null) ? Math.min(lbt, rbt)
+                             : (lbt != null ? lbt : rbt),
                     highScore: Math.max(l.highScore || 0, rem.highScore || 0),
-                    accuracy:  (l.accuracy  != null) ? l.accuracy  : (rem.accuracy  != null ? rem.accuracy  : null),
-                    attempts:  Math.max(l.attempts  || 0, rem.attempts  || 0)
+                    accuracy:  l.accuracy  != null ? l.accuracy
+                             : rem.accuracy != null ? rem.accuracy : null,
+                    attempts:  Math.max(l.attempts || 0, rem.attempts || 0)
                 };
             }
         });
         return merged;
     }
 
-    /* --------------------------------------------------------------------------
-       DEBOUNCED CLOUD SAVE (called after each game level completion)
-       -------------------------------------------------------------------------- */
-    queueCloudSave(progress) {
-        if (!this.currentUser || !this.db) return;
-
-        this.setSyncStatus('SYNCING');
-        if (this.debounceTimeout) clearTimeout(this.debounceTimeout);
-
-        this.debounceTimeout = setTimeout(async () => {
-            try {
-                const docId   = this.currentUser.uid;            // Always UID
-                const userRef = this.db.collection('users').doc(docId);
-                const username = this.currentUser.email
-                    ? this.currentUser.email.split('@')[0]
-                    : (this.currentUser.displayName || 'Candidate');
-
-                const updatePayload = {
-                    uid:          this.currentUser.uid,
-                    username:     username,
-                    email:        this.currentUser.email || '',
-                    displayName:  this.currentUser.displayName || username,
-                    photoURL:     this.currentUser.photoURL || '',
-                    lastSyncedAt: new Date().toISOString(),
-                    progress:     progress
-                };
-
-                await userRef.set(updatePayload, { merge: true });
-                this.lastSyncTime  = new Date();
-                this.lastSyncError = null;
-                this.setSyncStatus('SYNCED');
-            } catch (e) {
-                console.error('[Cloud Save Error]', e.code || e.message, e);
-                this.lastSyncError = e;
-                this.setSyncStatus('ERROR', e);
-            }
-        }, 1200);
-    }
-
-    /* --------------------------------------------------------------------------
-       UI UPDATES & STATUS INDICATORS
-       -------------------------------------------------------------------------- */
+    /* -------------------------------------------------------------------------
+       UI — SYNC STATUS BADGE
+       ------------------------------------------------------------------------- */
     setSyncStatus(status, err = null) {
         const badge = document.getElementById('firebase-sync-status');
         if (!badge) return;
 
         if (status === 'SYNCING') {
-            badge.innerHTML = `<span class="inline-flex items-center gap-1.5 text-[11px] text-cyan-400 font-medium"><i class="fas fa-spinner fa-spin"></i> Syncing...</span>`;
+            badge.innerHTML = `<span class="inline-flex items-center gap-1.5 text-[11px] text-cyan-400 font-medium"><i class="fas fa-spinner fa-spin"></i> Syncing…</span>`;
         } else if (status === 'SYNCED') {
-            const timeStr = this.lastSyncTime
+            const t = this.lastSyncTime
                 ? this.lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 : 'now';
-            badge.innerHTML = `<span class="inline-flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium" title="Synced to Firebase Cloud"><i class="fas fa-cloud-check"></i> Synced (${timeStr})</span>`;
+            badge.innerHTML = `<span class="inline-flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium" title="Synced to Firebase Cloud"><i class="fas fa-cloud-check"></i> Synced (${t})</span>`;
         } else if (status === 'ERROR') {
-            const errCode = (err && (err.code || err.message))
-                ? (err.code || err.message)
-                : (this.lastSyncError ? (this.lastSyncError.code || this.lastSyncError.message) : 'Sync Error');
-            badge.innerHTML = `<button type="button" onclick="showSyncErrorDetails()" class="inline-flex items-center gap-1.5 text-[11px] text-rose-400 font-medium hover:underline cursor-pointer" title="Click for error details: ${errCode}"><i class="fas fa-triangle-exclamation"></i> Sync Error</button>`;
+            const code = err?.code || err?.message || this.lastSyncError?.code || 'Sync Error';
+            badge.innerHTML = `<button type="button" onclick="showSyncErrorDetails()" class="inline-flex items-center gap-1.5 text-[11px] text-rose-400 font-medium hover:underline cursor-pointer" title="${code}"><i class="fas fa-triangle-exclamation"></i> Sync Error</button>`;
         } else {
             badge.innerHTML = `<span class="inline-flex items-center gap-1.5 text-[11px] text-gray-400 font-medium"><i class="fas fa-hard-drive"></i> Local Storage</span>`;
         }
     }
 
+    /* -------------------------------------------------------------------------
+       UI — AUTH STATE (logged-in / logged-out pill in navbar)
+       ------------------------------------------------------------------------- */
     updateUI() {
         const user = this.currentUser;
-        const loggedOutContainer = document.getElementById('firebase-auth-logged-out');
-        const loggedInContainer  = document.getElementById('firebase-auth-logged-in');
-        const userAvatar = document.getElementById('firebase-user-avatar');
-        const userName   = document.getElementById('firebase-user-name');
-        const userEmail  = document.getElementById('firebase-user-email');
+        const outEl   = document.getElementById('firebase-auth-logged-out');
+        const inEl    = document.getElementById('firebase-auth-logged-in');
+        const avatarEl = document.getElementById('firebase-user-avatar');
+        const nameEl   = document.getElementById('firebase-user-name');
+        const emailEl  = document.getElementById('firebase-user-email');
+        const initEl   = document.getElementById('firebase-user-initial');
 
         if (user) {
-            if (loggedOutContainer) loggedOutContainer.classList.add('hidden');
-            if (loggedInContainer)  loggedInContainer.classList.remove('hidden');
+            outEl?.classList.add('hidden');
+            inEl?.classList.remove('hidden');
 
             const name = user.displayName || user.email?.split('@')[0] || 'Candidate';
-            if (userName)  userName.textContent  = name;
-            if (userEmail) userEmail.textContent = user.email || '';
+            if (nameEl)  nameEl.textContent  = name;
+            if (emailEl) emailEl.textContent = user.email || '';
 
-            if (userAvatar) {
-                if (user.photoURL) {
-                    userAvatar.src = user.photoURL;
-                    userAvatar.classList.remove('hidden');
-                    const initial = document.getElementById('firebase-user-initial');
-                    if (initial) initial.classList.add('hidden');
-                } else {
-                    userAvatar.classList.add('hidden');
-                    const initial = document.getElementById('firebase-user-initial');
-                    if (initial) {
-                        initial.textContent = name.charAt(0).toUpperCase();
-                        initial.classList.remove('hidden');
-                    }
-                }
+            if (user.photoURL) {
+                if (avatarEl) { avatarEl.src = user.photoURL; avatarEl.classList.remove('hidden'); }
+                initEl?.classList.add('hidden');
+            } else {
+                avatarEl?.classList.add('hidden');
+                if (initEl) { initEl.textContent = name.charAt(0).toUpperCase(); initEl.classList.remove('hidden'); }
             }
 
+            // Only update badge text if sync is not already showing a live status
             if (!this.isSyncing && !this.lastSyncError) {
                 this.setSyncStatus(this.lastSyncTime ? 'SYNCED' : 'LOCAL');
             }
         } else {
-            if (loggedOutContainer) loggedOutContainer.classList.remove('hidden');
-            if (loggedInContainer)  loggedInContainer.classList.add('hidden');
+            outEl?.classList.remove('hidden');
+            inEl?.classList.add('hidden');
             this.setSyncStatus('LOCAL');
         }
 
-        if (typeof window.updateAuthGate === 'function') {
-            window.updateAuthGate(user);
-        }
+        if (typeof window.updateAuthGate === 'function') window.updateAuthGate(user);
     }
 }
 
-// Global singleton instance
+// ─── Global singleton ───────────────────────────────────────────────────────
 window.firebaseSync = new FirebaseSyncManager();

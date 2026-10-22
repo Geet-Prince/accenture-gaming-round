@@ -4416,7 +4416,7 @@
 
         async function handleGoogleSignIn() {
             if (typeof sfx !== 'undefined' && sfx) sfx.click();
-            const errBox = document.getElementById('auth-error-msg');
+            const errBox  = document.getElementById('auth-error-msg');
             const errText = document.getElementById('auth-error-text');
             if (errBox) errBox.classList.add('hidden');
 
@@ -4424,25 +4424,29 @@
                 if (!window.firebaseSync) {
                     throw new Error('Firebase is not loaded yet. Please refresh the page.');
                 }
+                // signInWithGoogle() now awaits the Firestore write inside it.
+                // Any error — whether from Auth or Firestore — surfaces here.
                 await window.firebaseSync.signInWithGoogle();
                 closeAuthModal();
             } catch (err) {
-                console.error('[Google Sign-In Error]', err);
-                if (err.code === 'auth/popup-closed-by-user') {
-                    return; // user simply closed the popup, no error alert needed
-                }
+                console.error('[Google Sign-In Error]', err.code || err.message, err);
 
-                // If user authenticated successfully in Firebase Auth, but Firestore sync was rejected
-                if (window.firebaseSync && window.firebaseSync.currentUser) {
-                    closeAuthModal();
-                    if (err.code === 'permission-denied' || err.code === 'not-found' || (err.message && err.message.toLowerCase().includes('firestore'))) {
-                        showSyncErrorDetails();
-                    }
+                // User deliberately closed the popup — silent, no error UI
+                if (err.code === 'auth/popup-closed-by-user' ||
+                    err.code === 'auth/cancelled-popup-request') {
                     return;
                 }
 
+                // Auth succeeded but Firestore write was blocked
+                if (window.firebaseSync && window.firebaseSync.currentUser) {
+                    closeAuthModal(); // user IS logged in — let them use the app
+                    showSyncErrorDetails();
+                    return;
+                }
+
+                // Auth itself failed — show the error in the modal
                 if (errText) errText.textContent = err.message || 'Google sign-in failed. Please ensure popups are allowed.';
-                if (errBox) errBox.classList.remove('hidden');
+                if (errBox)  errBox.classList.remove('hidden');
                 openAuthModal();
             }
         }
@@ -4498,44 +4502,8 @@
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(uid) {
-      return request.auth.uid == uid;
-    }
-
-    function isValidOptionalString(field, maxLen) {
-      return !(field in request.resource.data) ||
-        (request.resource.data[field] is string &&
-         request.resource.data[field].size() <= maxLen);
-    }
-
-    function isValidUserPayload() {
-      let d = request.resource.data;
-      return d.keys().hasOnly([
-            'uid', 'username', 'email', 'displayName', 'photoURL',
-            'createdAt', 'lastLoginAt', 'lastSyncedAt', 'progress'
-          ]) &&
-        ('uid' in d && d.uid is string && d.uid == request.auth.uid) &&
-        isValidOptionalString('username',     100) &&
-        isValidOptionalString('email',        100) &&
-        isValidOptionalString('displayName',  100) &&
-        isValidOptionalString('photoURL',    1000) &&
-        isValidOptionalString('lastSyncedAt',  50) &&
-        (!('createdAt'   in d) || d.createdAt   is string || d.createdAt   is timestamp) &&
-        (!('lastLoginAt' in d) || d.lastLoginAt is string || d.lastLoginAt is timestamp) &&
-        (!('progress'    in d) || d.progress    is map);
-    }
-
-    match /users/{uid} {
-      allow read:   if isSignedIn() && isOwner(uid);
-      allow create: if isSignedIn() && isOwner(uid) && isValidUserPayload();
-      allow update: if isSignedIn() && isOwner(uid) &&
-        (!('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid) &&
-        isValidUserPayload();
-      allow delete: if isSignedIn() && isOwner(uid);
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
     match /{document=**} {
