@@ -2087,6 +2087,25 @@
                 </div>
             </div>
 
+            <!-- Firestore Security Rules Helper -->
+            <div class="p-3 rounded-xl bg-acc-bgDark border border-acc-borderDark space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold text-gray-200 flex items-center gap-1.5">
+                        <i class="fas fa-shield-halved text-acc-lightPurple"></i>
+                        Firestore Security Rules
+                    </span>
+                    <a href="https://console.firebase.google.com/project/accenture-gaming-round/firestore/rules" target="_blank" class="text-[11px] text-cyan-400 hover:underline flex items-center gap-1">
+                        <span>Firebase Console Rules</span>
+                        <i class="fas fa-arrow-up-right-from-square text-[9px]"></i>
+                    </a>
+                </div>
+                <p class="text-[11px] text-gray-400">If authenticated users aren't saving to Firestore, publish rules in Firebase Console:</p>
+                <button type="button" onclick="copyFirestoreRulesToClipboard()" class="w-full py-2 px-3 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs font-medium flex items-center justify-center gap-2 border border-acc-borderDark transition active:scale-95">
+                    <i id="copy-rules-icon" class="fas fa-copy text-acc-lightPurple"></i>
+                    <span id="copy-rules-text">Copy firestore.rules to Clipboard</span>
+                </button>
+            </div>
+
             <div class="flex items-center gap-3 pt-2">
                 <button onclick="resetFirebaseConfigDefaults()" class="py-2.5 px-3 rounded-xl bg-acc-bgDark hover:bg-gray-800 text-gray-300 border border-acc-borderDark text-xs font-semibold transition">
                     Reset Defaults
@@ -4328,9 +4347,16 @@
         let app;
         window.onload = function () {
             app = new AssessmentApp();
+            window.app = app;
             if (typeof updateAuthGate === 'function') {
                 const user = window.firebaseSync ? window.firebaseSync.currentUser : null;
                 updateAuthGate(user);
+            }
+            // Trigger cloud sync now that application instance is mounted
+            if (window.firebaseSync && window.firebaseSync.currentUser) {
+                window.firebaseSync.syncCloudAndLocal(window.firebaseSync.currentUser).catch(e => {
+                    console.warn('[Init Cloud Sync]', e);
+                });
             }
         };
 
@@ -4405,6 +4431,16 @@
                 if (err.code === 'auth/popup-closed-by-user') {
                     return; // user simply closed the popup, no error alert needed
                 }
+
+                // If user authenticated successfully in Firebase Auth, but Firestore sync was rejected
+                if (window.firebaseSync && window.firebaseSync.currentUser) {
+                    closeAuthModal();
+                    if (err.code === 'permission-denied' || err.code === 'not-found' || (err.message && err.message.toLowerCase().includes('firestore'))) {
+                        showSyncErrorDetails();
+                    }
+                    return;
+                }
+
                 if (errText) errText.textContent = err.message || 'Google sign-in failed. Please ensure popups are allowed.';
                 if (errBox) errBox.classList.remove('hidden');
                 openAuthModal();
@@ -4424,24 +4460,30 @@
         function triggerManualSync() {
             closeUserDropdown();
             if (window.firebaseSync && window.firebaseSync.currentUser) {
-                window.firebaseSync.syncCloudAndLocal(window.firebaseSync.currentUser);
+                window.firebaseSync.syncCloudAndLocal(window.firebaseSync.currentUser).catch(err => {
+                    console.error('[Manual Sync Error]', err);
+                });
             }
         }
 
         function showSyncErrorDetails() {
             const err = window.firebaseSync ? window.firebaseSync.lastSyncError : null;
-            let msg = 'Firebase Cloud Sync Error Details:\n\n';
+            let msg = 'Firebase Cloud Sync Diagnostic Report:\n\n';
             if (err) {
                 msg += `Code: ${err.code || 'UNKNOWN'}\nMessage: ${err.message || 'No description provided'}\n\n`;
                 if (err.code === 'permission-denied') {
-                    msg += '👉 FIX: Your Cloud Firestore Security Rules in Firebase Console are blocking access.\n' +
-                           '1. Open Firebase Console (https://console.firebase.google.com/project/accenture-gaming-round/firestore/rules)\n' +
-                           '2. Go to Build > Firestore Database > Rules\n' +
-                           '3. Paste the updated rules and click "Publish".';
+                    msg += '👉 ROOT CAUSE: Cloud Firestore Security Rules in Firebase Console are blocking database writes.\n\n' +
+                           '👉 HOW TO FIX (Takes 30 seconds):\n' +
+                           '1. Open: https://console.firebase.google.com/project/accenture-gaming-round/firestore/rules\n' +
+                           '2. Go to Build > Firestore Database > Rules tab.\n' +
+                           '3. Paste the contents of firestore.rules and click "Publish".\n' +
+                           '4. Click "Sync Progress to Cloud" in your user menu.';
                 } else if (err.code === 'not-found' || (err.message && err.message.includes('not exist'))) {
-                    msg += '👉 FIX: Cloud Firestore database has not been created yet in your project!\n' +
-                           '1. Open Firebase Console (https://console.firebase.google.com/project/accenture-gaming-round/firestore)\n' +
-                           '2. Click "Create Database", select a region, and click Next.';
+                    msg += '👉 ROOT CAUSE: Cloud Firestore Database has NOT been initialized yet in your project!\n\n' +
+                           '👉 HOW TO FIX (Takes 30 seconds):\n' +
+                           '1. Open: https://console.firebase.google.com/project/accenture-gaming-round/firestore\n' +
+                           '2. Click "Create Database", select your preferred region, and click Next.\n' +
+                           '3. Publish firestore.rules in the Rules tab.';
                 } else {
                     msg += 'Please verify that Cloud Firestore is created and rules are published in Firebase Console.';
                 }
@@ -4449,6 +4491,74 @@
                 msg += 'No detailed error trace recorded. Please check your browser console (F12) for network logs.';
             }
             alert(msg);
+        }
+
+        function copyFirestoreRulesToClipboard() {
+            const rulesContent = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    function isValidOptionalString(field, maxLen) {
+      return !(field in request.resource.data) ||
+        (request.resource.data[field] is string &&
+         request.resource.data[field].size() <= maxLen);
+    }
+
+    function isValidUserPayload() {
+      let d = request.resource.data;
+      return d.keys().hasOnly([
+            'uid', 'username', 'email', 'displayName', 'photoURL',
+            'createdAt', 'lastLoginAt', 'lastSyncedAt', 'progress'
+          ]) &&
+        ('uid' in d && d.uid is string && d.uid == request.auth.uid) &&
+        isValidOptionalString('username',     100) &&
+        isValidOptionalString('email',        100) &&
+        isValidOptionalString('displayName',  100) &&
+        isValidOptionalString('photoURL',    1000) &&
+        isValidOptionalString('lastSyncedAt',  50) &&
+        (!('createdAt'   in d) || d.createdAt   is string || d.createdAt   is timestamp) &&
+        (!('lastLoginAt' in d) || d.lastLoginAt is string || d.lastLoginAt is timestamp) &&
+        (!('progress'    in d) || d.progress    is map);
+    }
+
+    match /users/{uid} {
+      allow read:   if isSignedIn() && isOwner(uid);
+      allow create: if isSignedIn() && isOwner(uid) && isValidUserPayload();
+      allow update: if isSignedIn() && isOwner(uid) &&
+        (!('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid) &&
+        isValidUserPayload();
+      allow delete: if isSignedIn() && isOwner(uid);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}`;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(rulesContent).then(() => {
+                    const textSpan = document.getElementById('copy-rules-text');
+                    const icon = document.getElementById('copy-rules-icon');
+                    if (textSpan) textSpan.textContent = '✓ Rules Copied to Clipboard!';
+                    if (icon) icon.className = 'fas fa-check text-emerald-400';
+                    setTimeout(() => {
+                        if (textSpan) textSpan.textContent = 'Copy firestore.rules to Clipboard';
+                        if (icon) icon.className = 'fas fa-copy text-acc-lightPurple';
+                    }, 3000);
+                }).catch(() => {
+                    prompt('Copy the Firestore rules below (Cmd+C / Ctrl+C):', rulesContent);
+                });
+            } else {
+                prompt('Copy the Firestore rules below (Cmd+C / Ctrl+C):', rulesContent);
+            }
         }
 
         function openFirebaseConfigModal() {
