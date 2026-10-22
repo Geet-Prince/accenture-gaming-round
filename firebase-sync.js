@@ -10,6 +10,7 @@ class FirebaseSyncManager {
         this.db = null;
         this.currentUser = null;
         this.currentUserDocId = null;
+        this.lastSyncError = null;
         this.isSyncing = false;
         this.lastSyncTime = null;
         this.debounceTimeout = null;
@@ -166,20 +167,33 @@ class FirebaseSyncManager {
             localStorage.setItem(window.app.storageKey, JSON.stringify(mergedProgress));
 
             const username = user.email ? user.email.split('@')[0] : (user.displayName || 'Candidate');
+            const nowIso = new Date().toISOString();
 
-            // Push merged progress to cloud under candidate username doc ID
-            await userRef.set({
+            const payload = {
                 uid: user.uid,
                 username: username,
                 email: user.email || '',
                 displayName: user.displayName || username,
                 photoURL: user.photoURL || '',
-                lastLoginAt: firebase.firestore.FieldValue.serverTimestamp(),
-                lastSyncedAt: new Date().toISOString(),
+                lastLoginAt: nowIso,
+                lastSyncedAt: nowIso,
                 progress: mergedProgress
-            }, { merge: true });
+            };
+
+            // Attempt 1: Save under username doc ID (e.g. users/geetprince)
+            try {
+                await userRef.set(payload, { merge: true });
+                this.currentUserDocId = docId;
+            } catch (err1) {
+                console.warn('[Firebase Sync] Write to users/' + docId + ' failed. Falling back to users/' + user.uid, err1);
+                // Attempt 2: Fallback to standard user.uid doc ID (works with classic rules)
+                const uidRef = this.db.collection('users').doc(user.uid);
+                await uidRef.set(payload, { merge: true });
+                this.currentUserDocId = user.uid;
+            }
 
             this.lastSyncTime = new Date();
+            this.lastSyncError = null;
             this.setSyncStatus('SYNCED');
 
             // Refresh app dashboard UI
@@ -188,7 +202,8 @@ class FirebaseSyncManager {
             }
         } catch (err) {
             console.error('[Firebase Sync Error]', err);
-            this.setSyncStatus('ERROR');
+            this.lastSyncError = err;
+            this.setSyncStatus('ERROR', err);
         }
     }
 
@@ -241,17 +256,26 @@ class FirebaseSyncManager {
         this.debounceTimeout = setTimeout(async () => {
             try {
                 const docId = this.currentUserDocId || this.getUserDocId(this.currentUser) || this.currentUser.uid;
-                const userRef = this.db.collection('users').doc(docId);
-                await userRef.set({
+                const updatePayload = {
                     lastSyncedAt: new Date().toISOString(),
                     progress: progress
-                }, { merge: true });
+                };
+
+                try {
+                    const userRef = this.db.collection('users').doc(docId);
+                    await userRef.set(updatePayload, { merge: true });
+                } catch (e1) {
+                    const fallbackRef = this.db.collection('users').doc(this.currentUser.uid);
+                    await fallbackRef.set(updatePayload, { merge: true });
+                }
 
                 this.lastSyncTime = new Date();
+                this.lastSyncError = null;
                 this.setSyncStatus('SYNCED');
             } catch (e) {
                 console.error('[Cloud Save Error]', e);
-                this.setSyncStatus('ERROR');
+                this.lastSyncError = e;
+                this.setSyncStatus('ERROR', e);
             }
         }, 1200);
     }
@@ -259,7 +283,7 @@ class FirebaseSyncManager {
     /* --------------------------------------------------------------------------
        UI UPDATES & STATUS INDICATORS
        -------------------------------------------------------------------------- */
-    setSyncStatus(status) {
+    setSyncStatus(status, err = null) {
         const badge = document.getElementById('firebase-sync-status');
         if (!badge) return;
 
@@ -269,7 +293,8 @@ class FirebaseSyncManager {
             const timeStr = this.lastSyncTime ? this.lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'now';
             badge.innerHTML = `<span class="inline-flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium" title="Synced to Firebase Cloud"><i class="fas fa-cloud-check"></i> Synced (${timeStr})</span>`;
         } else if (status === 'ERROR') {
-            badge.innerHTML = `<span class="inline-flex items-center gap-1.5 text-[11px] text-rose-400 font-medium" title="Sync Error - Check Firebase configuration"><i class="fas fa-triangle-exclamation"></i> Sync Error</span>`;
+            const errCode = (err && (err.code || err.message)) ? (err.code || err.message) : (this.lastSyncError ? (this.lastSyncError.code || this.lastSyncError.message) : 'Sync Error');
+            badge.innerHTML = `<button type="button" onclick="showSyncErrorDetails()" class="inline-flex items-center gap-1.5 text-[11px] text-rose-400 font-medium hover:underline cursor-pointer" title="Click to view error details: ${errCode}"><i class="fas fa-triangle-exclamation"></i> Sync Error</button>`;
         } else {
             badge.innerHTML = `<span class="inline-flex items-center gap-1.5 text-[11px] text-gray-400 font-medium"><i class="fas fa-hard-drive"></i> Local Storage</span>`;
         }

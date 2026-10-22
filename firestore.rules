@@ -14,7 +14,7 @@ service cloud.firestore {
     //   - email: string (optional, string <= 100) - Candidate email address
     //   - displayName: string (optional, string <= 100) - Candidate display name
     //   - photoURL: string (optional, string <= 1000) - Profile avatar URL
-    //   - lastLoginAt: timestamp (optional) - Server timestamp when user logged in
+    //   - lastLoginAt: string or timestamp (optional) - When user logged in
     //   - lastSyncedAt: string (optional, string <= 50) - ISO 8601 timestamp string
     //   - progress: map (optional) - Solved levels, high scores, accuracy, attempts
     //
@@ -56,28 +56,33 @@ service cloud.firestore {
         isValidOptionalString('displayName', 100) &&
         isValidOptionalString('photoURL', 1000) &&
         isValidOptionalString('lastSyncedAt', 50) &&
-        (!('lastLoginAt' in data) || data.lastLoginAt is timestamp) &&
+        (!('lastLoginAt' in data) || data.lastLoginAt is string || data.lastLoginAt is timestamp) &&
         (!('progress' in data) || data.progress is map);
     }
 
     // User profile and game progress (keyed by Gmail username or Auth UID)
     match /users/{userDocId} {
       allow read: if isAuthenticated() && (
+        resource == null ||
         request.auth.uid == userDocId ||
-        (resource != null && resource.data.uid == request.auth.uid)
+        resource.data.uid == request.auth.uid
       );
 
       allow create: if isAuthenticated() &&
         uidUnchanged() &&
         isValidUserDoc(request.resource.data);
 
-      allow update: if isAuthenticated() &&
-        (request.auth.uid == userDocId || (resource != null && resource.data.uid == request.auth.uid)) &&
+      allow update: if isAuthenticated() && (
+        request.auth.uid == userDocId ||
+        (resource != null && resource.data.uid == request.auth.uid)
+      ) &&
         uidNotModified() &&
         isValidUserDoc(request.resource.data);
 
-      allow delete: if isAuthenticated() &&
-        (request.auth.uid == userDocId || (resource != null && resource.data.uid == request.auth.uid));
+      allow delete: if isAuthenticated() && (
+        request.auth.uid == userDocId ||
+        (resource != null && resource.data.uid == request.auth.uid)
+      );
     }
 
     // Default deny all other collections

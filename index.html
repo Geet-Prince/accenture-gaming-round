@@ -4428,6 +4428,29 @@
             }
         }
 
+        function showSyncErrorDetails() {
+            const err = window.firebaseSync ? window.firebaseSync.lastSyncError : null;
+            let msg = 'Firebase Cloud Sync Error Details:\n\n';
+            if (err) {
+                msg += `Code: ${err.code || 'UNKNOWN'}\nMessage: ${err.message || 'No description provided'}\n\n`;
+                if (err.code === 'permission-denied') {
+                    msg += '👉 FIX: Your Cloud Firestore Security Rules in Firebase Console are blocking access.\n' +
+                           '1. Open Firebase Console (https://console.firebase.google.com/project/accenture-gaming-round/firestore/rules)\n' +
+                           '2. Go to Build > Firestore Database > Rules\n' +
+                           '3. Paste the updated rules and click "Publish".';
+                } else if (err.code === 'not-found' || (err.message && err.message.includes('not exist'))) {
+                    msg += '👉 FIX: Cloud Firestore database has not been created yet in your project!\n' +
+                           '1. Open Firebase Console (https://console.firebase.google.com/project/accenture-gaming-round/firestore)\n' +
+                           '2. Click "Create Database", select a region, and click Next.';
+                } else {
+                    msg += 'Please verify that Cloud Firestore is created and rules are published in Firebase Console.';
+                }
+            } else {
+                msg += 'No detailed error trace recorded. Please check your browser console (F12) for network logs.';
+            }
+            alert(msg);
+        }
+
         function openFirebaseConfigModal() {
             closeUserDropdown();
             closeAuthModal();
