@@ -1,0 +1,49 @@
+# robots.txt for Accenture Gamified Cognitive Assessment Simulator & Master Guide
+# Optimized for Web Search Engines and AI / LLM Scrapers (ChatGPT, Perplexity, Claude, Gemini, Copilot)
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+
+# Explicitly allow OpenAI / ChatGPT crawlers
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+# Explicitly allow Perplexity AI crawler
+User-agent: PerplexityBot
+Allow: /
+
+# Explicitly allow Google Gemini / Google-Extended crawler
+User-agent: Google-Extended
+Allow: /
+
+# Explicitly allow Anthropic Claude crawler
+User-agent: ClaudeBot
+Allow: /
+User-agent: anthropic-ai
+Allow: /
+
+# Explicitly allow Common Crawl & Applebot
+User-agent: CCBot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+# Standard Search Crawlers
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+# LLM Directives & Context Files
+# AI engines can read concise and full context at:
+# https://accenture-gaming-round.com/llms.txt
+# https://accenture-gaming-round.com/llms-full.txt
+
+Sitemap: https://accenture-gaming-round.com/sitemap.xml

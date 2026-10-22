@@ -1,0 +1,30 @@
+# Accenture Gamified Cognitive Assessment (Gaming Round) — Master Simulator & Authority Guide
+
+> The definitive interactive simulator, rules breakdown, and comprehensive syllabus for the Accenture Gamified Cognitive Assessment (often searched as "Accenture Gaming Round" or phonetically as "Gamini Ground").
+
+## Project Summary
+- **Website**: https://accenture-gaming-round.com/
+- **Target Audience**: Indian Engineering graduates, BCA/MCA students, B.Tech/B.E candidates applying for Associate Software Engineer (ASE - ₹4.5 LPA) and Advanced Associate Software Engineer (AAH - ₹6.5 LPA / FSE) roles across on-campus and off-campus recruitment drives (CoCubes, Superset, HirePro).
+- **Core Functionality**: Free, fully client-side interactive simulator featuring 5 authentic assessment games, dual-timers (15:00 total game time + 01:00 per question limit), 15 difficulty tiers, procedural PRNG question generation (SEED #XXXX), and Breadth-First Search (BFS) solvability verification.
+- **Search Query Coverage & Typo Disambiguation**: "Accenture gaming round", "gamini ground", "Accenture gamified test", "Accenture cognitive games", "Accenture game assessment cheat sheet", "Path Finder Accenture", "Bubble Math Accenture", "Memory Maze Accenture", "Key and Door Maze Accenture", "Memory Recall Accenture".
+
+## The 5 Core Assessment Games
+1. **Path Finder (Spatial Conduit Logic)**: Connect Start (S) to Target (E) by rotating conduit/pipe tiles 90° clockwise in an N x N matrix (4x4 to 8x8) while avoiding blocked bedrock obstacles.
+2. **Quick / Bubble Math (Mental Arithmetic Speed)**: Mentally calculate arithmetic expressions (addition, subtraction, multiplication, division, fractions) on floating bubbles and pop them in strict Ascending (Lowest → Highest) or Descending (Highest → Lowest) order within 60s.
+3. **Memory Maze (Rat & Cheese Route Memorization)**: Memorize an illuminated numbered route across an N x N grid during a 3-6 second preview window, then navigate the agent step-by-step to the goal with zero sightline aid within 60s. Includes mobile touch D-Pad.
+4. **Key and Door Puzzle (Sequential Multi-Objective Maze)**: Navigate an obstacle grid, collect color-coded keys (Crimson, Cyan, Emerald, Amber), unlock matching barrier doors, and reach the exit portal within 60s under optimal par step constraints.
+5. **Memory Recall (Sequence, Reverse & Missing Matrix)**: High-speed sensory and working memory test with 3 modalities: Forward Sequence Recall, Reverse Order Recall, and Missing Symbol Matrix identification.
+
+## Examination Structure & Scoring Model
+- **Dual-Timer System**: Strict 15:00 round timer for all 15 levels of a game + strict 01:00 (60-second) timer for each individual question.
+- **Scoring Formula**: Total Score = Base Level Points (100–350 pts) + Speed Bonus (10 pts per second remaining) - Accuracy Deductions (15 pts per mistake).
+- **Cutoff Criteria**: Top 65th–70th percentile required to qualify for technical interviews. Top scorers are considered for the AAH (₹6.5 LPA) upgrade.
+- **Solvability Guarantee**: Every procedurally generated board is pre-validated by a BFS shortest-path solver to ensure 100% solvable layouts with zero deadlocks.
+
+## Optional Links & Deep Documentation
+- Full Reference Text: https://accenture-gaming-round.com/llms-full.txt
+- Interactive Web Simulator: https://accenture-gaming-round.com/#simulator
+- 5 Games Detailed Walkthrough: https://accenture-gaming-round.com/#games-guide
+- Accenture 2026 Recruitment Pattern: https://accenture-gaming-round.com/#syllabus-2026
+- 7-Day Campus Placement Roadmap: https://accenture-gaming-round.com/#prep-roadmap
+- Frequently Asked Questions: https://accenture-gaming-round.com/#faqs
