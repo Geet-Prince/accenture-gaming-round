@@ -303,7 +303,7 @@
     <header class="sticky top-0 z-40 bg-acc-cardDark/95 backdrop-blur-md border-b border-acc-borderDark px-4 lg:px-8 py-2.5">
         <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
             <!-- Brand Logo -->
-            <div class="flex items-center gap-3 cursor-pointer" onclick="app.showDashboard()">
+            <div class="flex items-center gap-3 cursor-pointer" onclick="handleBrandLogoClick()">
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-acc-purple to-indigo-600 flex items-center justify-center shadow-lg shadow-acc-purple/30 shrink-0">
                     <span class="text-white font-extrabold text-xl tracking-tighter">&gt;</span>
                 </div>
@@ -382,11 +382,16 @@
 
                 <!-- Firebase Auth & Cloud Sync Pill -->
                 <div id="firebase-auth-wrapper" class="flex items-center gap-2">
-                    <!-- Logged Out State -->
+                    <!-- Logged Out State: Google Sign-In Only -->
                     <div id="firebase-auth-logged-out" class="flex items-center gap-1.5">
-                        <button onclick="openAuthModal()" class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-acc-purple to-indigo-600 hover:from-acc-darkPurple hover:to-indigo-700 text-white text-xs font-bold shadow-md shadow-acc-purple/20 flex items-center gap-1.5 transition">
-                            <i class="fas fa-cloud-arrow-up text-xs"></i>
-                            <span>Sign In / Sync</span>
+                        <button onclick="handleGoogleSignIn()" class="px-3.5 py-1.5 rounded-xl bg-white hover:bg-gray-100 text-gray-900 text-xs font-bold shadow-md shadow-white/10 flex items-center gap-2 transition hover:scale-[1.02] active:scale-[0.98]">
+                            <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                            </svg>
+                            <span>Sign in with Google</span>
                         </button>
                     </div>
 
@@ -411,10 +416,6 @@
                                 <i class="fas fa-rotate text-cyan-400"></i>
                                 <span>Sync Progress to Cloud</span>
                             </button>
-                            <button onclick="openFirebaseConfigModal()" class="w-full text-left px-3 py-2 rounded-xl hover:bg-acc-bgDark text-xs text-gray-200 flex items-center gap-2 transition">
-                                <i class="fas fa-key text-amber-400"></i>
-                                <span>Firebase Project Keys</span>
-                            </button>
                             <button onclick="firebaseSync.signOut(); closeUserDropdown();" class="w-full text-left px-3 py-2 rounded-xl hover:bg-red-950/30 text-xs text-rose-400 flex items-center gap-2 transition">
                                 <i class="fas fa-arrow-right-from-bracket"></i>
                                 <span>Sign Out</span>
@@ -424,7 +425,7 @@
                 </div>
 
                 <!-- Analytics Modal Button -->
-                <button onclick="app.openAnalyticsModal()" class="px-3 py-1.5 rounded-xl bg-acc-bgDark hover:bg-gray-800 border border-acc-borderDark text-xs font-semibold text-gray-200 flex items-center gap-1.5 transition">
+                <button id="btn-analytics-modal" onclick="app.openAnalyticsModal()" class="hidden px-3 py-1.5 rounded-xl bg-acc-bgDark hover:bg-gray-800 border border-acc-borderDark text-xs font-semibold text-gray-200 flex items-center gap-1.5 transition">
                     <i class="fas fa-chart-line text-cyan-400"></i>
                     <span class="hidden sm:inline">Analytics</span>
                 </button>
@@ -442,10 +443,382 @@
     <!-- MAIN CONTENT CONTAINER (SIMULATOR + KNOWLEDGE BASE) -->
     <main id="simulator" class="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6">
 
-<!-- ==========================================
-             VIEW 1: DASHBOARD / HOME SCREEN
+        <!-- ==========================================
+             VIEW 0: LANDING PAGE & SIGN-IN GATE (SEO OPTIMIZED)
+             Only Google Sign-In is offered to access the interactive simulator.
+             Unauthenticated users & search engines see the full comprehensive guide,
+             feature breakdowns, and game previews.
              ========================================== -->
-        <section id="view-dashboard" class="space-y-8">
+        <section id="view-landing" class="space-y-12">
+            <!-- Hero Banner -->
+            <div class="relative rounded-3xl bg-gradient-to-br from-[#1C0F38] via-[#121227] to-[#0A0D1A] border border-acc-purple/30 p-8 sm:p-12 overflow-hidden shadow-2xl">
+                <div class="absolute -right-20 -top-20 w-96 h-96 bg-acc-purple/25 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="absolute -left-20 -bottom-20 w-80 h-80 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none"></div>
+
+                <div class="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-10">
+                    <div class="space-y-6 max-w-3xl">
+                        <!-- Top Tag Badges -->
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-acc-purple/30 border border-acc-purple/60 text-acc-lightPurple text-xs font-bold uppercase tracking-wider">
+                                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                2025–2026 Official Pattern
+                            </span>
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-semibold">
+                                <i class="fas fa-briefcase"></i> ASE (₹4.5 LPA) &amp; AAH (₹6.5 LPA)
+                            </span>
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 text-xs font-semibold">
+                                <i class="fas fa-bolt"></i> 100% Free Practice
+                            </span>
+                        </div>
+
+                        <!-- Main SEO Title -->
+                        <h1 class="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.1]">
+                            Crack the Accenture Gaming Round with the <span class="bg-gradient-to-r from-acc-purple via-pink-400 to-cyan-400 bg-clip-text text-transparent">#1 Assessment Simulator</span>
+                        </h1>
+
+                        <!-- Detailed Subtitle -->
+                        <p class="text-gray-300 text-base sm:text-lg leading-relaxed">
+                            Prepare for the Accenture Gamified Cognitive Assessment (widely searched as <strong>"Gamini Ground"</strong>) with our exact exam-grade simulation. Practice all 5 authentic assessment games under realistic 15:00 global timers, strict 60-second question countdowns, and procedural BFS-verified challenges with cross-device cloud progress.
+                        </p>
+
+                        <!-- Google Sign-In Action Block -->
+                        <div class="pt-2 space-y-3">
+                            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                                <button onclick="handleGoogleSignIn()" class="px-8 py-4 rounded-2xl bg-white hover:bg-gray-100 text-gray-900 font-extrabold text-base shadow-2xl shadow-acc-purple/40 flex items-center justify-center gap-3 transition transform hover:scale-[1.02] active:scale-[0.98]">
+                                    <svg class="w-6 h-6 shrink-0" viewBox="0 0 24 24">
+                                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                                    </svg>
+                                    <span>Sign in with Google to Start Simulator</span>
+                                </button>
+                                <a href="#games-preview" class="px-6 py-4 rounded-2xl bg-acc-cardDark/80 hover:bg-gray-800 text-gray-200 border border-acc-borderDark font-bold text-sm text-center transition flex items-center justify-center gap-2">
+                                    <i class="fas fa-gamepad text-cyan-400"></i>
+                                    <span>Preview 5 Games</span>
+                                </a>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-4 text-xs text-gray-400 pt-1">
+                                <span class="flex items-center gap-1.5"><i class="fas fa-lock text-emerald-400"></i> Google OAuth 2.0 Security</span>
+                                <span class="flex items-center gap-1.5"><i class="fas fa-ban text-cyan-400"></i> Zero Passwords Required</span>
+                                <span class="flex items-center gap-1.5"><i class="fas fa-cloud text-acc-lightPurple"></i> Automatic Cloud Progress Sync</span>
+                            </div>
+                        </div>
+
+                        <!-- Phonetic Search Clarification Banner ("Gamini Ground") -->
+                        <div class="p-3.5 rounded-xl bg-acc-bgDark/90 border border-acc-borderDark flex items-start gap-3 text-xs text-gray-300">
+                            <i class="fas fa-circle-info text-cyan-400 mt-0.5 shrink-0 text-base"></i>
+                            <div>
+                                <span class="font-bold text-white">Looking for "Accenture Gamini Ground"?</span>
+                                <span class="text-gray-300"> Hundreds of Indian engineering students search for the test phonetically as <em>"gamini ground"</em> or <em>"accenture gamini ground"</em>. This site is the official, comprehensive simulator built for the Accenture Gamified Cognitive Assessment round.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Stats Card -->
+                    <div class="rounded-2xl bg-acc-cardDark/90 border border-acc-borderDark p-6 shadow-xl flex flex-col gap-4 min-w-[280px]">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-acc-lightPurple border-b border-acc-borderDark pb-2 flex items-center justify-between">
+                            <span>Simulator Stats</span>
+                            <i class="fas fa-chart-pie text-cyan-400"></i>
+                        </h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs text-gray-400">Assessment Games</span>
+                                <span class="font-mono font-bold text-white text-sm">5 Modules</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs text-gray-400">Total Levels</span>
+                                <span class="font-mono font-bold text-white text-sm">75 Challenges</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs text-gray-400">Global Assessment Time</span>
+                                <span class="font-mono font-bold text-emerald-400 text-sm">15:00 Mins</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs text-gray-400">Per-Question Time</span>
+                                <span class="font-mono font-bold text-cyan-400 text-sm">60 Seconds</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs text-gray-400">Solvability Guarantee</span>
+                                <span class="font-mono font-bold text-purple-400 text-sm">100% BFS Verified</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs text-gray-400">Candidate Access</span>
+                                <span class="font-mono font-bold text-emerald-400 text-sm">100% Free</span>
+                            </div>
+                        </div>
+                        <button onclick="handleGoogleSignIn()" class="mt-2 w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-acc-purple to-indigo-600 hover:from-acc-darkPurple hover:to-indigo-700 text-white font-bold text-xs shadow-lg shadow-acc-purple/30 flex items-center justify-center gap-2 transition">
+                            <i class="fab fa-google text-xs"></i>
+                            <span>Sign in with Google</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION: WHAT YOU UNLOCK (THE 5 ASSESSMENT GAMES PREVIEW) -->
+            <div id="games-preview" class="space-y-6">
+                <div class="text-center max-w-3xl mx-auto space-y-2">
+                    <span class="text-xs uppercase font-extrabold tracking-widest text-cyan-400">Comprehensive Curriculum</span>
+                    <h2 class="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
+                        What You Will Unlock When You Sign In
+                    </h2>
+                    <p class="text-sm text-gray-400">
+                        Sign in with Google to practice all 5 official games under real Accenture exam conditions. Every game features 15 levels scaling from fundamental to extreme difficulty.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Game 1: Path Finder -->
+                    <div class="rounded-2xl bg-acc-cardDark border border-acc-borderDark p-6 shadow-xl space-y-4 hover:border-acc-purple/50 transition">
+                        <div class="flex items-center justify-between">
+                            <span class="px-2.5 py-1 rounded-lg bg-acc-purple/20 text-acc-lightPurple font-bold text-[11px] uppercase tracking-wider">Game 01</span>
+                            <span class="text-xs text-gray-400"><i class="fas fa-layer-group text-acc-purple mr-1"></i> 15 Levels</span>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                <i class="fas fa-bezier-curve text-acc-lightPurple"></i>
+                                <span>Path Finder</span>
+                            </h3>
+                            <p class="text-xs text-acc-lightPurple font-semibold mt-0.5">Spatial Conduit &amp; Flow Routing</p>
+                        </div>
+                        <p class="text-xs text-gray-300 leading-relaxed">
+                            Rotate pipe segments (elbows, straights, cross junctions) on 4×4 to 8×8 grids with bedrock obstacles to build an unbroken fluid channel from IN to OUT before the 60s question timer expires.
+                        </p>
+                        <ul class="text-xs text-gray-400 space-y-1.5 pt-1 border-t border-acc-borderDark">
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-emerald-400 text-[10px]"></i> Clockwise 90° pipe rotation</li>
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-emerald-400 text-[10px]"></i> Blocked bedrock obstacle cells</li>
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-emerald-400 text-[10px]"></i> Automated fluid flow verification</li>
+                        </ul>
+                        <button onclick="handleGoogleSignIn()" class="w-full py-2.5 px-3 rounded-xl bg-acc-purple hover:bg-acc-darkPurple text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2">
+                            <i class="fab fa-google text-xs"></i>
+                            <span>Sign in with Google to Play</span>
+                        </button>
+                    </div>
+
+                    <!-- Game 2: Quick / Bubble Math -->
+                    <div class="rounded-2xl bg-acc-cardDark border border-acc-borderDark p-6 shadow-xl space-y-4 hover:border-cyan-500/50 transition">
+                        <div class="flex items-center justify-between">
+                            <span class="px-2.5 py-1 rounded-lg bg-cyan-500/20 text-cyan-300 font-bold text-[11px] uppercase tracking-wider">Game 02</span>
+                            <span class="text-xs text-gray-400"><i class="fas fa-layer-group text-cyan-400 mr-1"></i> 15 Levels</span>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                <i class="fas fa-calculator text-cyan-400"></i>
+                                <span>Quick / Bubble Math</span>
+                            </h3>
+                            <p class="text-xs text-cyan-300 font-semibold mt-0.5">Rapid Arithmetic &amp; Sorting</p>
+                        </div>
+                        <p class="text-xs text-gray-300 leading-relaxed">
+                            Compute floating arithmetic expressions in real-time under alternating Ascending (Lowest → Highest) and Descending (Highest → Lowest) instructions under extreme time pressure.
+                        </p>
+                        <ul class="text-xs text-gray-400 space-y-1.5 pt-1 border-t border-acc-borderDark">
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-emerald-400 text-[10px]"></i> Dynamic Ascending &amp; Descending modes</li>
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-emerald-400 text-[10px]"></i> Mixed operations (+, -, ×, ÷)</li>
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-emerald-400 text-[10px]"></i> Per-second remaining speed bonus</li>
+                        </ul>
+                        <button onclick="handleGoogleSignIn()" class="w-full py-2.5 px-3 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2">
+                            <i class="fab fa-google text-xs"></i>
+                            <span>Sign in with Google to Play</span>
+                        </button>
+                    </div>
+
+                    <!-- Game 3: Memory Maze -->
+                    <div class="rounded-2xl bg-acc-cardDark border border-acc-borderDark p-6 shadow-xl space-y-4 hover:border-emerald-500/50 transition">
+                        <div class="flex items-center justify-between">
+                            <span class="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 font-bold text-[11px] uppercase tracking-wider">Game 03</span>
+                            <span class="text-xs text-gray-400"><i class="fas fa-layer-group text-emerald-400 mr-1"></i> 15 Levels</span>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                <i class="fas fa-route text-emerald-400"></i>
+                                <span>Memory Maze</span>
+                            </h3>
+                            <p class="text-xs text-emerald-300 font-semibold mt-0.5">Rat &amp; Cheese Blind Navigation</p>
+                        </div>
+                        <p class="text-xs text-gray-300 leading-relaxed">
+                            Memorize a glowing labyrinth path during a 3–6 second preview countdown, then navigate the mouse blindly across the grid without stepping on hidden wall barriers.
+                        </p>
+                        <ul class="text-xs text-gray-400 space-y-1.5 pt-1 border-t border-acc-borderDark">
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-emerald-400 text-[10px]"></i> 3–5s high-speed path preview</li>
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-emerald-400 text-[10px]"></i> Arrow keys + on-screen mobile D-pad</li>
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-emerald-400 text-[10px]"></i> Step-by-step path validation</li>
+                        </ul>
+                        <button onclick="handleGoogleSignIn()" class="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2">
+                            <i class="fab fa-google text-xs"></i>
+                            <span>Sign in with Google to Play</span>
+                        </button>
+                    </div>
+
+                    <!-- Game 4: Key & Door Maze -->
+                    <div class="rounded-2xl bg-acc-cardDark border border-acc-borderDark p-6 shadow-xl space-y-4 hover:border-amber-500/50 transition">
+                        <div class="flex items-center justify-between">
+                            <span class="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 font-bold text-[11px] uppercase tracking-wider">Game 04</span>
+                            <span class="text-xs text-gray-400"><i class="fas fa-layer-group text-amber-400 mr-1"></i> 15 Levels</span>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                <i class="fas fa-key text-amber-400"></i>
+                                <span>Key &amp; Door Maze</span>
+                            </h3>
+                            <p class="text-xs text-amber-300 font-semibold mt-0.5">Multi-Goal Graph Traversal</p>
+                        </div>
+                        <p class="text-xs text-gray-300 leading-relaxed">
+                            Traverse intricate mazes collecting color-coded keys (Red, Blue, Green, Gold) to open locked doors and reach the target under optimal BFS Par move efficiency.
+                        </p>
+                        <ul class="text-xs text-gray-400 space-y-1.5 pt-1 border-t border-acc-borderDark">
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-emerald-400 text-[10px]"></i> Multi-key inventory management</li>
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-emerald-400 text-[10px]"></i> Optimal BFS Par target move score</li>
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-emerald-400 text-[10px]"></i> Color-coded locked barriers</li>
+                        </ul>
+                        <button onclick="handleGoogleSignIn()" class="w-full py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2">
+                            <i class="fab fa-google text-xs"></i>
+                            <span>Sign in with Google to Play</span>
+                        </button>
+                    </div>
+
+                    <!-- Game 5: Memory Recall -->
+                    <div class="rounded-2xl bg-acc-cardDark border border-acc-borderDark p-6 shadow-xl space-y-4 hover:border-rose-500/50 transition">
+                        <div class="flex items-center justify-between">
+                            <span class="px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 font-bold text-[11px] uppercase tracking-wider">Game 05</span>
+                            <span class="text-xs text-gray-400"><i class="fas fa-layer-group text-rose-400 mr-1"></i> 15 Levels</span>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                <i class="fas fa-brain text-rose-400"></i>
+                                <span>Memory Recall</span>
+                            </h3>
+                            <p class="text-xs text-rose-300 font-semibold mt-0.5">Working Memory &amp; Matrix Recognition</p>
+                        </div>
+                        <p class="text-xs text-gray-300 leading-relaxed">
+                            Exercise short-term retention with 3 sub-modalities: Forward Sequence, Reverse Order Recall, and Missing-Item Matrix pattern recognition under tight exposure.
+                        </p>
+                        <ul class="text-xs text-gray-400 space-y-1.5 pt-1 border-t border-acc-borderDark">
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-emerald-400 text-[10px]"></i> Forward &amp; reverse sequence recall</li>
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-emerald-400 text-[10px]"></i> Missing 3×3 matrix item deduction</li>
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-emerald-400 text-[10px]"></i> Adaptive flash duration scaling</li>
+                        </ul>
+                        <button onclick="handleGoogleSignIn()" class="w-full py-2.5 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2">
+                            <i class="fab fa-google text-xs"></i>
+                            <span>Sign in with Google to Play</span>
+                        </button>
+                    </div>
+
+                    <!-- Module 6: Real Exam Engine & Diagnostics -->
+                    <div class="rounded-2xl bg-gradient-to-br from-acc-purple/30 to-indigo-950/40 border border-acc-purple/50 p-6 shadow-xl space-y-4 hover:border-acc-purple transition">
+                        <div class="flex items-center justify-between">
+                            <span class="px-2.5 py-1 rounded-lg bg-acc-purple/30 text-white font-bold text-[11px] uppercase tracking-wider">Engine</span>
+                            <span class="text-xs text-emerald-400 font-semibold"><i class="fas fa-certificate mr-1"></i> Diagnostic Ready</span>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                <i class="fas fa-chart-line text-cyan-400"></i>
+                                <span>Exam Mock &amp; Diagnostics</span>
+                            </h3>
+                            <p class="text-xs text-cyan-300 font-semibold mt-0.5">15:00 Simulation &amp; PDF Report</p>
+                        </div>
+                        <p class="text-xs text-gray-300 leading-relaxed">
+                            Complete a continuous 5-game mock simulation with strict 15-minute global clocks, 60-second timeouts, and comprehensive candidate evaluation sheets.
+                        </p>
+                        <ul class="text-xs text-gray-400 space-y-1.5 pt-1 border-t border-acc-borderDark">
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-emerald-400 text-[10px]"></i> Global 15:00 round timer + 60s level timer</li>
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-emerald-400 text-[10px]"></i> Speed &amp; Accuracy score breakdown</li>
+                            <li class="flex items-center gap-2"><i class="fas fa-check text-emerald-400 text-[10px]"></i> Printable candidate PDF scorecard</li>
+                        </ul>
+                        <button onclick="handleGoogleSignIn()" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-acc-purple to-indigo-600 hover:from-acc-darkPurple hover:to-indigo-700 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-2">
+                            <i class="fab fa-google text-xs"></i>
+                            <span>Sign in with Google to Launch</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECTION: KEY SIMULATOR CAPABILITIES -->
+            <div class="rounded-3xl bg-acc-cardDark border border-acc-borderDark p-8 sm:p-10 space-y-6">
+                <div class="border-b border-acc-borderDark pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <span class="text-xs font-bold uppercase tracking-wider text-acc-lightPurple">Engine Specifications</span>
+                        <h2 class="text-xl sm:text-2xl font-bold text-white">Why Candidates Pass with This Simulator</h2>
+                    </div>
+                    <span class="text-xs text-gray-400">Calibrated to 2025–2026 CoCubes &amp; Superset Testing Systems</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-xs text-gray-300">
+                    <div class="p-4 rounded-2xl bg-acc-bgDark border border-acc-borderDark space-y-2">
+                        <div class="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-sm">
+                            <i class="fas fa-stopwatch"></i>
+                        </div>
+                        <h3 class="font-bold text-white text-sm">Dual-Timer Architecture</h3>
+                        <p class="text-gray-400 leading-relaxed">
+                            15:00 Global assessment timer alongside a strict 60-second level timer. In Exam Mode, timing out automatically advances to the next question just like real test proctoring.
+                        </p>
+                    </div>
+
+                    <div class="p-4 rounded-2xl bg-acc-bgDark border border-acc-borderDark space-y-2">
+                        <div class="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold text-sm">
+                            <i class="fas fa-network-wired"></i>
+                        </div>
+                        <h3 class="font-bold text-white text-sm">100% BFS Solvability</h3>
+                        <p class="text-gray-400 leading-relaxed">
+                            Every generated maze, conduit network, and key puzzle is solved behind the scenes by a Breadth-First Search (BFS) graph algorithm before rendering to guarantee zero deadlocks.
+                        </p>
+                    </div>
+
+                    <div class="p-4 rounded-2xl bg-acc-bgDark border border-acc-borderDark space-y-2">
+                        <div class="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-sm">
+                            <i class="fas fa-cloud"></i>
+                        </div>
+                        <h3 class="font-bold text-white text-sm">Google Cloud Progress</h3>
+                        <p class="text-gray-400 leading-relaxed">
+                            Signing in with Google automatically synchronizes your unlocked levels, personal best times, and competition high scores to Cloud Firestore across your phone, tablet, and laptop.
+                        </p>
+                    </div>
+
+                    <div class="p-4 rounded-2xl bg-acc-bgDark border border-acc-borderDark space-y-2">
+                        <div class="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-sm">
+                            <i class="fas fa-mobile-screen"></i>
+                        </div>
+                        <h3 class="font-bold text-white text-sm">Touch D-Pad &amp; Zero Lag</h3>
+                        <p class="text-gray-400 leading-relaxed">
+                            Engineered for zero server lag on mobile hotspots or college Wi-Fi. Features integrated on-screen touch direction controls for seamless practice on smartphones.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BOTTOM HIGH-CONVERSION CTA BANNER -->
+            <div class="rounded-3xl bg-gradient-to-r from-acc-purple via-indigo-600 to-cyan-600 p-8 sm:p-12 text-center text-white space-y-5 shadow-2xl">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-xs font-bold uppercase tracking-wider">
+                    <i class="fas fa-graduation-cap"></i> Free Unlimited Practice
+                </span>
+                <h2 class="text-2xl sm:text-4xl font-black tracking-tight">
+                    Ready to Clear the Accenture Cognitive Assessment?
+                </h2>
+                <p class="text-sm sm:text-base text-purple-100 max-w-2xl mx-auto leading-relaxed">
+                    Sign in with Google now to begin your free 15-minute mock simulation. No downloads, no passwords, and zero fees required.
+                </p>
+                <div class="pt-2 flex flex-col sm:flex-row items-center justify-center gap-4">
+                    <button onclick="handleGoogleSignIn()" class="px-8 py-4 rounded-2xl bg-white hover:bg-gray-100 text-gray-900 font-extrabold text-base shadow-2xl flex items-center justify-center gap-3 transition transform hover:scale-105 active:scale-95">
+                        <svg class="w-6 h-6 shrink-0" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                        </svg>
+                        <span>Sign in with Google to Start Free</span>
+                    </button>
+                    <a href="#guide-content" class="px-6 py-4 rounded-2xl bg-black/30 hover:bg-black/50 text-white font-bold text-sm border border-white/20 transition flex items-center justify-center gap-2">
+                        <i class="fas fa-book-open"></i>
+                        <span>Read Syllabus &amp; Guide</span>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ==========================================
+             VIEW 1: DASHBOARD / HOME SCREEN (AUTHENTICATED ONLY)
+             ========================================== -->
+        <section id="view-dashboard" class="hidden space-y-8">
             
             <!-- Hero Banner -->
             <div class="relative rounded-2xl bg-gradient-to-r from-[#1A103C] via-[#131326] to-[#0F172A] border border-acc-borderDark p-6 sm:p-8 overflow-hidden shadow-2xl">
@@ -1611,18 +1984,18 @@
     </div>
 
     <!-- ==========================================
-         MODAL 5: FIREBASE AUTHENTICATION (LOGIN / SIGN UP)
+         MODAL 5: GOOGLE SIGN-IN GATEWAY
          ========================================== -->
     <div id="modal-auth" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
         <div class="bg-acc-cardDark border border-acc-borderDark rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5">
             <div class="flex items-center justify-between border-b border-acc-borderDark pb-3">
                 <div class="flex items-center gap-2.5">
                     <div class="w-9 h-9 rounded-xl bg-acc-purple/20 border border-acc-purple/40 flex items-center justify-center text-acc-lightPurple">
-                        <i class="fas fa-cloud-arrow-up text-sm"></i>
+                        <i class="fas fa-lock text-sm"></i>
                     </div>
                     <div>
-                        <h3 class="font-bold text-base text-white">Cloud Sync &amp; Profile</h3>
-                        <p class="text-[11px] text-gray-400">Sync assessment progress across all your devices</p>
+                        <h3 class="font-bold text-base text-white">Google Sign In</h3>
+                        <p class="text-[11px] text-gray-400">Unlock all 5 games &amp; real exam simulation</p>
                     </div>
                 </div>
                 <button onclick="closeAuthModal()" class="w-8 h-8 rounded-lg bg-acc-bgDark hover:bg-gray-800 text-gray-400 hover:text-white flex items-center justify-center">
@@ -1636,10 +2009,14 @@
                 <span id="auth-error-text">An error occurred</span>
             </div>
 
+            <p class="text-xs text-gray-300 leading-relaxed">
+                Sign in with your Google account to access all 5 assessment games, 15-minute exam timers, strict 60-second question countdowns, and cross-device cloud progress.
+            </p>
+
             <!-- 1-Click Google Sign-In -->
             <div>
-                <button onclick="handleGoogleSignIn()" class="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-gray-100 text-gray-900 font-bold text-xs shadow-md flex items-center justify-center gap-2.5 transition">
-                    <svg class="w-4 h-4" viewBox="0 0 24 24">
+                <button onclick="handleGoogleSignIn()" class="w-full py-3.5 px-4 rounded-xl bg-white hover:bg-gray-100 text-gray-900 font-extrabold text-sm shadow-xl flex items-center justify-center gap-3 transition transform hover:scale-[1.02] active:scale-[0.98]">
+                    <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24">
                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                         <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                         <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
@@ -1649,50 +2026,12 @@
                 </button>
             </div>
 
-            <div class="flex items-center gap-3">
-                <div class="flex-1 h-px bg-acc-borderDark"></div>
-                <span class="text-[10px] uppercase font-bold text-gray-500 tracking-wider">OR WITH EMAIL</span>
-                <div class="flex-1 h-px bg-acc-borderDark"></div>
-            </div>
-
-            <!-- Tab Switcher (Sign In vs Sign Up) -->
-            <div class="flex items-center bg-acc-bgDark p-1 rounded-xl border border-acc-borderDark text-xs">
-                <button id="auth-tab-signin" onclick="switchAuthTab('SIGNIN')" class="flex-1 py-1.5 rounded-lg font-bold bg-acc-purple text-white transition">
-                    Sign In
-                </button>
-                <button id="auth-tab-signup" onclick="switchAuthTab('SIGNUP')" class="flex-1 py-1.5 rounded-lg font-bold text-gray-400 hover:text-white transition">
-                    Create Account
-                </button>
-            </div>
-
-            <!-- Email & Password Form -->
-            <form onsubmit="handleEmailAuth(event)" class="space-y-3 text-xs">
-                <div id="auth-field-name" class="hidden space-y-1">
-                    <label class="text-gray-400 block">Candidate Name</label>
-                    <input id="auth-name" type="text" placeholder="e.g. Prince Raj" class="w-full bg-acc-bgDark border border-acc-borderDark rounded-xl px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:border-acc-purple" />
-                </div>
-                <div class="space-y-1">
-                    <label class="text-gray-400 block">Email Address</label>
-                    <input id="auth-email" type="email" required placeholder="your.name@college.edu" class="w-full bg-acc-bgDark border border-acc-borderDark rounded-xl px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:border-acc-purple" />
-                </div>
-                <div class="space-y-1">
-                    <label class="text-gray-400 block">Password</label>
-                    <input id="auth-password" type="password" required placeholder="••••••••" class="w-full bg-acc-bgDark border border-acc-borderDark rounded-xl px-3 py-2 text-white placeholder-gray-600 focus:outline-none focus:border-acc-purple" />
-                </div>
-                <button id="auth-submit-btn" type="submit" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-acc-purple to-indigo-600 hover:from-acc-darkPurple hover:to-indigo-700 text-white font-bold shadow-lg shadow-acc-purple/30 transition flex items-center justify-center gap-2">
-                    <i class="fas fa-lock text-xs"></i>
-                    <span id="auth-submit-label">Sign In</span>
-                </button>
-            </form>
-
             <div class="pt-2 border-t border-acc-borderDark flex items-center justify-between text-[11px] text-gray-400">
-                <button onclick="openFirebaseConfigModal()" class="hover:text-amber-300 transition flex items-center gap-1">
-                    <i class="fas fa-gear"></i>
-                    <span>Firebase Setup</span>
-                </button>
-                <button onclick="closeAuthModal()" class="hover:text-gray-200 transition">
-                    Continue as Guest (Local)
-                </button>
+                <span class="flex items-center gap-1.5 text-emerald-400 font-medium">
+                    <i class="fas fa-shield-halved"></i>
+                    <span>Secure Google OAuth 2.0</span>
+                </span>
+                <span>Zero Passwords Needed</span>
             </div>
         </div>
     </div>
@@ -2099,6 +2438,10 @@
             }
 
             launchSelectedRound(gameId) {
+                if (!window.firebaseSync || !window.firebaseSync.currentUser) {
+                    handleGoogleSignIn();
+                    return;
+                }
                 const sel = document.getElementById(`select-${gameId}`);
                 const round = sel ? parseInt(sel.value, 10) : 1;
                 this.simulationQueue = [];
@@ -2106,6 +2449,10 @@
             }
 
             startFullSimulation() {
+                if (!window.firebaseSync || !window.firebaseSync.currentUser) {
+                    handleGoogleSignIn();
+                    return;
+                }
                 this.simulationQueue = [];
                 GAMES_META.forEach(g => {
                     this.simulationQueue.push(g.id);
@@ -2115,10 +2462,16 @@
             }
 
             showDashboard() {
+                if (!window.firebaseSync || !window.firebaseSync.currentUser) {
+                    if (typeof updateAuthGate === 'function') updateAuthGate(null);
+                    return;
+                }
                 this.stopTimers();
                 document.getElementById('modal-round-complete').classList.add('hidden');
                 document.getElementById('modal-run-summary').classList.add('hidden');
                 document.getElementById('view-game').classList.add('hidden');
+                const landing = document.getElementById('view-landing');
+                if (landing) landing.classList.add('hidden');
                 document.getElementById('view-dashboard').classList.remove('hidden');
                 document.getElementById('btn-back-home').classList.add('hidden');
                 this.renderDashboard();
@@ -2126,6 +2479,10 @@
 
             /* ------------------- 15-MINUTE GAME RUN & 1-MINUTE LEVEL LIFECYCLE ------------------- */
             startFresh15MinuteGameRun(gameId, startLevel = 1) {
+                if (!window.firebaseSync || !window.firebaseSync.currentUser) {
+                    handleGoogleSignIn();
+                    return;
+                }
                 sfx.click();
                 this.activeGameId = gameId;
                 this.activeRound = Math.max(1, Math.min(15, startLevel));
@@ -2612,6 +2969,10 @@
 
             /* ------------------- ANALYTICS & RESET MODALS ------------------- */
             openAnalyticsModal() {
+                if (!window.firebaseSync || !window.firebaseSync.currentUser) {
+                    handleGoogleSignIn();
+                    return;
+                }
                 sfx.click();
                 const body = document.getElementById('analytics-modal-body');
                 let html = `<div class="grid grid-cols-1 md:grid-cols-5 gap-4">`;
@@ -3967,12 +4328,54 @@
         let app;
         window.onload = function () {
             app = new AssessmentApp();
+            if (typeof updateAuthGate === 'function') {
+                const user = window.firebaseSync ? window.firebaseSync.currentUser : null;
+                updateAuthGate(user);
+            }
         };
 
+        function handleBrandLogoClick() {
+            if (window.firebaseSync && window.firebaseSync.currentUser) {
+                if (window.app) window.app.showDashboard();
+            } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
         /* --------------------------------------------------------------------------
-           FIREBASE UI & MODAL EVENT HANDLERS
+           AUTHENTICATION GATE & GOOGLE SIGN-IN HANDLER
            -------------------------------------------------------------------------- */
-        let currentAuthMode = 'SIGNIN';
+        function updateAuthGate(user) {
+            const viewLanding = document.getElementById('view-landing');
+            const viewDashboard = document.getElementById('view-dashboard');
+            const viewGame = document.getElementById('view-game');
+            const btnAnalytics = document.getElementById('btn-analytics-modal');
+            const btnBackHome = document.getElementById('btn-back-home');
+
+            if (user) {
+                // User is Authenticated: Unlock Simulator Arena
+                if (viewLanding) viewLanding.classList.add('hidden');
+                if (viewGame && !viewGame.classList.contains('hidden')) {
+                    // inside active game session, keep active game
+                } else {
+                    if (viewDashboard) viewDashboard.classList.remove('hidden');
+                }
+                if (btnAnalytics) btnAnalytics.classList.remove('hidden');
+                if (window.app && typeof window.app.renderDashboard === 'function') {
+                    window.app.renderDashboard();
+                }
+            } else {
+                // User is Unauthenticated: Lock behind Landing Page
+                if (viewLanding) viewLanding.classList.remove('hidden');
+                if (viewDashboard) viewDashboard.classList.add('hidden');
+                if (viewGame) viewGame.classList.add('hidden');
+                if (btnAnalytics) btnAnalytics.classList.add('hidden');
+                if (btnBackHome) btnBackHome.classList.add('hidden');
+                if (window.app && typeof window.app.stopTimers === 'function') {
+                    window.app.stopTimers();
+                }
+            }
+        }
 
         function openAuthModal() {
             if (typeof sfx !== 'undefined' && sfx) sfx.click();
@@ -3985,64 +4388,26 @@
             document.getElementById('auth-error-msg').classList.add('hidden');
         }
 
-        function switchAuthTab(mode) {
-            if (typeof sfx !== 'undefined' && sfx) sfx.click();
-            currentAuthMode = mode;
-            const tabIn = document.getElementById('auth-tab-signin');
-            const tabUp = document.getElementById('auth-tab-signup');
-            const nameField = document.getElementById('auth-field-name');
-            const submitLabel = document.getElementById('auth-submit-label');
-
-            if (mode === 'SIGNUP') {
-                tabUp.className = 'flex-1 py-1.5 rounded-lg font-bold bg-acc-purple text-white transition';
-                tabIn.className = 'flex-1 py-1.5 rounded-lg font-bold text-gray-400 hover:text-white transition';
-                nameField.classList.remove('hidden');
-                submitLabel.textContent = 'Create Account';
-            } else {
-                tabIn.className = 'flex-1 py-1.5 rounded-lg font-bold bg-acc-purple text-white transition';
-                tabUp.className = 'flex-1 py-1.5 rounded-lg font-bold text-gray-400 hover:text-white transition';
-                nameField.classList.add('hidden');
-                submitLabel.textContent = 'Sign In';
-            }
-        }
-
         async function handleGoogleSignIn() {
             if (typeof sfx !== 'undefined' && sfx) sfx.click();
             const errBox = document.getElementById('auth-error-msg');
             const errText = document.getElementById('auth-error-text');
-            errBox.classList.add('hidden');
+            if (errBox) errBox.classList.add('hidden');
 
             try {
-                await firebaseSync.signInWithGoogle();
-                closeAuthModal();
-            } catch (err) {
-                console.error(err);
-                errText.textContent = err.message || 'Google sign-in failed. Please check your Firebase configuration.';
-                errBox.classList.remove('hidden');
-            }
-        }
-
-        async function handleEmailAuth(e) {
-            e.preventDefault();
-            if (typeof sfx !== 'undefined' && sfx) sfx.click();
-            const email = document.getElementById('auth-email').value;
-            const password = document.getElementById('auth-password').value;
-            const name = document.getElementById('auth-name').value;
-            const errBox = document.getElementById('auth-error-msg');
-            const errText = document.getElementById('auth-error-text');
-            errBox.classList.add('hidden');
-
-            try {
-                if (currentAuthMode === 'SIGNUP') {
-                    await firebaseSync.signUpWithEmail(email, password, name);
-                } else {
-                    await firebaseSync.signInWithEmail(email, password);
+                if (!window.firebaseSync) {
+                    throw new Error('Firebase is not loaded yet. Please refresh the page.');
                 }
+                await window.firebaseSync.signInWithGoogle();
                 closeAuthModal();
             } catch (err) {
-                console.error(err);
-                errText.textContent = err.message || 'Authentication failed. Please verify credentials.';
-                errBox.classList.remove('hidden');
+                console.error('[Google Sign-In Error]', err);
+                if (err.code === 'auth/popup-closed-by-user') {
+                    return; // user simply closed the popup, no error alert needed
+                }
+                if (errText) errText.textContent = err.message || 'Google sign-in failed. Please ensure popups are allowed.';
+                if (errBox) errBox.classList.remove('hidden');
+                openAuthModal();
             }
         }
 

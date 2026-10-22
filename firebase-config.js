@@ -21,3 +21,4 @@ window.isFirebaseConfigured = function() {
     const cfg = window.FIREBASE_CONFIG;
     return Boolean(cfg && cfg.apiKey && !cfg.apiKey.includes('YOUR_API_KEY_HERE') && cfg.projectId);
 };
+

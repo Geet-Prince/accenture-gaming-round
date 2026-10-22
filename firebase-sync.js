@@ -262,6 +262,10 @@ class FirebaseSyncManager {
             if (loggedInContainer) loggedInContainer.classList.add('hidden');
             this.setSyncStatus('LOCAL');
         }
+
+        if (typeof window.updateAuthGate === 'function') {
+            window.updateAuthGate(user);
+        }
     }
 }
 
