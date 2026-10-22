@@ -9,6 +9,7 @@ class FirebaseSyncManager {
         this.auth = null;
         this.db = null;
         this.currentUser = null;
+        this.currentUserDocId = null;
         this.isSyncing = false;
         this.lastSyncTime = null;
         this.debounceTimeout = null;
@@ -92,24 +93,61 @@ class FirebaseSyncManager {
         if (!this.auth) return;
         await this.auth.signOut();
         this.currentUser = null;
+        this.currentUserDocId = null;
         this.updateUI();
     }
 
     /* --------------------------------------------------------------------------
        CLOUD FIRESTORE SYNCHRONIZATION
        -------------------------------------------------------------------------- */
+    getUserDocId(user) {
+        if (!user) return null;
+        let username = '';
+        if (user.email) {
+            // E.g. "geetprince@gmail.com" -> "geetprince"
+            username = user.email.split('@')[0].trim().toLowerCase();
+        } else if (user.displayName) {
+            // Fallback to display name e.g. "Prince Raj" -> "prince_raj"
+            username = user.displayName.trim().toLowerCase().replace(/\s+/g, '_');
+        }
+        // Sanitize for valid Firestore document ID (alphanumeric, dots, underscores, hyphens)
+        username = username.replace(/[^a-z0-9._-]/g, '');
+        return username || user.uid;
+    }
+
     async syncCloudAndLocal(user) {
         if (!this.db || !user || !window.app) return;
 
         this.setSyncStatus('SYNCING');
         try {
-            const userRef = this.db.collection('users').doc(user.uid);
-            const doc = await userRef.get();
+            let docId = this.getUserDocId(user);
+            let userRef = this.db.collection('users').doc(docId);
+            let doc = await userRef.get();
+
+            // Handle potential username collision if another account with same prefix exists
+            if (doc.exists && doc.data().uid && doc.data().uid !== user.uid) {
+                docId = `${docId}_${user.uid.slice(0, 5)}`;
+                userRef = this.db.collection('users').doc(docId);
+                doc = await userRef.get();
+            }
+
+            this.currentUserDocId = docId;
 
             let cloudProgress = null;
             if (doc.exists) {
                 const data = doc.data();
                 cloudProgress = data.progress || null;
+            } else {
+                // Check if candidate data was previously stored under user.uid (legacy migration)
+                try {
+                    const legacyRef = this.db.collection('users').doc(user.uid);
+                    const legacyDoc = await legacyRef.get();
+                    if (legacyDoc.exists) {
+                        cloudProgress = legacyDoc.data().progress || null;
+                    }
+                } catch (e) {
+                    // Ignore legacy lookup errors
+                }
             }
 
             const localProgress = window.app.progress || window.app.loadProgress();
@@ -119,11 +157,14 @@ class FirebaseSyncManager {
             window.app.progress = mergedProgress;
             localStorage.setItem(window.app.storageKey, JSON.stringify(mergedProgress));
 
-            // Push merged progress to cloud
+            const username = user.email ? user.email.split('@')[0] : (user.displayName || 'Candidate');
+
+            // Push merged progress to cloud under candidate username doc ID
             await userRef.set({
                 uid: user.uid,
+                username: username,
                 email: user.email || '',
-                displayName: user.displayName || user.email?.split('@')[0] || 'Candidate',
+                displayName: user.displayName || username,
                 photoURL: user.photoURL || '',
                 lastLoginAt: firebase.firestore.FieldValue.serverTimestamp(),
                 lastSyncedAt: new Date().toISOString(),
@@ -191,7 +232,8 @@ class FirebaseSyncManager {
 
         this.debounceTimeout = setTimeout(async () => {
             try {
-                const userRef = this.db.collection('users').doc(this.currentUser.uid);
+                const docId = this.currentUserDocId || this.getUserDocId(this.currentUser) || this.currentUser.uid;
+                const userRef = this.db.collection('users').doc(docId);
                 await userRef.set({
                     lastSyncedAt: new Date().toISOString(),
                     progress: progress
