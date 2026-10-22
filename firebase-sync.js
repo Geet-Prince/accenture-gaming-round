@@ -102,17 +102,23 @@ class FirebaseSyncManager {
        -------------------------------------------------------------------------- */
     getUserDocId(user) {
         if (!user) return null;
-        let username = '';
         if (user.email) {
-            // E.g. "geetprince@gmail.com" -> "geetprince"
-            username = user.email.split('@')[0].trim().toLowerCase();
+            const parts = user.email.toLowerCase().trim().split('@');
+            const username = parts[0].replace(/[^a-z0-9._-]/g, '');
+            const domain = (parts[1] || '').split('.')[0].replace(/[^a-z0-9_-]/g, '');
+
+            // For standard @gmail.com accounts (guaranteed globally unique by Google)
+            if (parts[1] === 'gmail.com') {
+                return username || user.uid;
+            } else {
+                // For college or custom domains (e.g. rahul@vit.ac.in -> rahul_vit)
+                return domain ? `${username}_${domain}` : (username || user.uid);
+            }
         } else if (user.displayName) {
-            // Fallback to display name e.g. "Prince Raj" -> "prince_raj"
-            username = user.displayName.trim().toLowerCase().replace(/\s+/g, '_');
+            const cleanName = user.displayName.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9._-]/g, '');
+            return `${cleanName}_${user.uid.slice(0, 5)}`;
         }
-        // Sanitize for valid Firestore document ID (alphanumeric, dots, underscores, hyphens)
-        username = username.replace(/[^a-z0-9._-]/g, '');
-        return username || user.uid;
+        return user.uid;
     }
 
     async syncCloudAndLocal(user) {
@@ -122,19 +128,21 @@ class FirebaseSyncManager {
         try {
             let docId = this.getUserDocId(user);
             let userRef = this.db.collection('users').doc(docId);
-            let doc = await userRef.get();
+            let doc = null;
 
-            // Handle potential username collision if another account with same prefix exists
-            if (doc.exists && doc.data().uid && doc.data().uid !== user.uid) {
+            try {
+                doc = await userRef.get();
+            } catch (readErr) {
+                // If another user already owns this exact ID, safety fallback with UID fragment
                 docId = `${docId}_${user.uid.slice(0, 5)}`;
                 userRef = this.db.collection('users').doc(docId);
-                doc = await userRef.get();
+                try { doc = await userRef.get(); } catch (e) { /* ignore */ }
             }
 
             this.currentUserDocId = docId;
 
             let cloudProgress = null;
-            if (doc.exists) {
+            if (doc && doc.exists) {
                 const data = doc.data();
                 cloudProgress = data.progress || null;
             } else {
@@ -142,7 +150,7 @@ class FirebaseSyncManager {
                 try {
                     const legacyRef = this.db.collection('users').doc(user.uid);
                     const legacyDoc = await legacyRef.get();
-                    if (legacyDoc.exists) {
+                    if (legacyDoc && legacyDoc.exists) {
                         cloudProgress = legacyDoc.data().progress || null;
                     }
                 } catch (e) {
